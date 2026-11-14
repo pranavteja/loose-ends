@@ -11,9 +11,9 @@ Sources reviewed on 14 November 2026:
 - [Local transcription](https://github.com/SYSTRAN/faster-whisper)
 - [Ollama structured outputs](https://ollama.com/blog/structured-outputs)
 
-The submission must work end to end, demonstrate meaningful Kane verification, and show interaction between the coding agent and Kane. Start the loop with the first working feature. Runtime browser execution is optional; development verification remains part of both scope options.
+The submission must work end to end, demonstrate meaningful Kane verification, and show interaction between the coding agent and Kane. Start the loop with the first working feature. Kane is used only in development verification. Application runtime remains independent of it.
 
-Luma lanes relevant here: apps that verify themselves; browser agents performing work; and requirements-derived tests. Acceptance criteria in product-scope.md are intended to map to actual verification evidence.
+Relevant lanes: apps that verify themselves and requirements-derived tests. Acceptance criteria in product-scope.md are intended to map to actual verification evidence.
 
 Deadline: Nov 19, 2026, 23:59 IST. Fresh repository from Nov 12 onward; TestMu registration and Kane use required. Published initial allocation is 10,000 Kane credits. Confirm current limits in the account.
 
@@ -30,3 +30,14 @@ Submission checklist:
 - [ ] Deadline and exact submission destination checked again
 
 Bolna is inspiration only; its submissions are closed. No Bolna service dependency is assumed.
+
+## Verification mapping
+
+| Kane flow to implement | Acceptance criteria | Expected evidence |
+|---|---|---|
+| Type thought, skip question, edit steps, approve | AC07–AC11 | Saved task and steps survive refresh |
+| Correct transcript before approval | AC05, AC12 | New draft reflects correction; old approval rejected |
+| Retry approval after simulated lost response | AC10 | Exactly one saved task |
+| Ask bot about an existing task | AC14–AC15 | UI references actual task without changing it |
+
+Use separate model evaluations for semantic quality and audio accuracy; a green UI flow does not prove either. Record a real development change, Kane result and agent response. Do not fabricate a caught bug or passing run. Scripts and evidence will live under verification/kane/ when implemented.

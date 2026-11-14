@@ -1,20 +1,34 @@
-# Review checklist
+# Remaining review decisions
 
-Please annotate this file or open issues once a remote repository exists.
+## Confirmed direction
 
-- [ ] Working name: keep Loose Ends or rename?
-- [ ] First user and recurring use case: personal capture, work follow-up, or both?
-- [ ] MVP A (inbox) or B (one external browser action)?
-- [ ] If B: which destination and exact operation? Who supplies a test account?
-- [ ] Groq first, local first, or selectable? Which machine will run local inference?
-- [ ] Agree React/FastAPI and SQLite baseline, or propose an alternative with a reason.
-- [ ] Who owns frontend, backend, model evaluation, deployment, and Kane flows?
-- [ ] Agree date ambiguity policy and default timezone.
-- [ ] Agree audio retention and capture deletion behaviour.
-- [ ] Restricted single-user demo or authenticated personal deployment?
-- [ ] Choose repository host/account, visibility, license, and collaborator access.
-- [ ] Confirm actual hours available before Nov 19; cut scope accordingly.
+- Home-screen companion, optional clarification and essential substeps.
+- Internal task board; Phase A first, Phase B later.
+- No computer-use agents or runtime browser runner.
+- Gradio Blocks with independent Python services and SQLite initially.
+- Kane separated from application runtime.
+- Documentation teaches through problems, requirements and modules.
 
-Open technical questions: Kane connectivity to local deployment; programmatic result format; destination login/session support; audio format compatibility on target phone; provider availability; worker recovery after restart.
+## Proposed defaults to review
 
-The next implementation task after review is the text-to-inbox vertical slice, not building all planned components at once.
+- [ ] Start with one focused clarification per round and allow skipping; cap rounds at two for MVP.
+- [ ] Show ordered steps, with no nested subtasks or automatic schedule optimisation.
+- [ ] Default timezone Asia/Kolkata, editable; never infer a missing deadline.
+- [ ] Confirm the desktop split view and mobile Bot/Board navigation in wireframes.
+- [ ] Choose audio retention duration; review delete-source/retain-task policy.
+- [ ] Choose local single-user setup or restricted hosted demo.
+- [ ] Confirm actual combined availability and responsibilities with the colleague.
+- [ ] Confirm Groq access and model availability; local models remain an optional adapter.
+- [ ] Select repository host, visibility, collaborator access and license.
+
+## Technical checks before promising a demo
+
+- Kane can reach the development app and return evidence to the coding agent.
+- Browser recording works on the target laptop and phone.
+- Provider responses validate for clarification and substeps.
+- Request timeout/retry behaviour preserves input and avoids stale writes.
+- Persistence survives restart and deployment storage is not ephemeral.
+
+Keep further comments here or inline with `>>`. Existing decisions need not be reopened unless a concrete constraint changes.
+
+- [ ] Validate microphone, editable steps, session restoration and Kane interaction in the first Gradio slice.

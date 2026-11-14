@@ -1,59 +1,41 @@
-# Product scope
+# Product scope and acceptance criteria
 
-Proposal v0.1 — review before implementation.
+## Phase A: personal companion and internal board
 
-## User and outcome
+Capture → optional clarification → suggested steps → review → internal task board. The home-screen bot answers questions about saved work. Support short English voice notes and text; one speaker, up to two minutes, one level of subtasks. Audio-file upload is deferred behind browser recording and text.
 
-Initial user: an individual capturing personal commitments from desktop or mobile browser. Success means fewer lost commitments and less manual editing, not maximum autonomous execution.
+Deadlines and suggested work times are different fields. Neither is mandatory. No actual reminder delivery is included in Phase A. Suggestions must not be presented as scheduled notifications.
 
-## Core journey
-
-1. Record a voice note (up to two minutes), upload audio, or paste text.
-2. See queued/processing/failed states and retain input through failures.
-3. Read and edit the transcript; re-extract proposals if necessary.
-4. Review each task or idea with its supporting source excerpt.
-5. Confirm proposed dates, resolve ambiguities, and approve selected items.
-6. View saved tasks and ideas, edit them, and mark tasks complete.
-
-Use explicit start/stop recording; natural pauses must not submit a recording prematurely. English, one speaker, and short captures are the initial supported scope.
-
-## Acceptance criteria
-
-| ID | Requirement | Observable result |
+| ID | Requirement | Acceptance evidence |
 |---|---|---|
-| AC01 | Capture text or audio | Input is persisted and receives a stable capture ID |
-| AC02 | Recover from processing failure | Retry uses the same capture; no lost text/audio or duplicate proposals |
-| AC03 | Preserve evidence | Every proposed action has a source excerpt from the current transcript |
-| AC04 | Distinguish intent | Negated tasks are excluded; tentative ideas are separated from tasks |
-| AC05 | Handle corrections | “Friday, actually Monday” yields Monday or requests clarification |
-| AC06 | Resolve time honestly | Capture timestamp/timezone are used; ambiguity is flagged; missing dates remain empty |
-| AC07 | Review controls | Edit/approve/dismiss operate independently on each proposal |
-| AC08 | Approve idempotently | Double click or retried approval produces exactly one inbox item |
-| AC09 | Persist inbox | Approved items and completion state survive reload/restart |
-| AC10 | Version transcript edits | Regeneration invalidates unapproved old proposals; approved tasks are not silently rewritten |
-| AC11 | Handle unavailable microphone | Pasted text and audio upload remain available |
-| AC12 | Delete capture | Associated audio is removed; retained approved tasks no longer expose deleted source text |
+| AC01 | Preserve capture | Text/audio saved before inference; ID survives reload |
+| AC02 | Recover failures | Retry reuses input; no duplicate active proposal set |
+| AC03 | Ground intent | Task/idea has a source excerpt; suggested steps labelled separately |
+| AC04 | Respect intent | Negation excluded; tentative ideas separate; cancellation distinguished |
+| AC05 | Preserve corrections | Final corrected timing wins, or ambiguity is visible |
+| AC06 | Handle dates | Relative dates use capture time/timezone; no invented deadlines |
+| AC07 | Clarify optionally | Answer, skip, and fewer-questions controls all lead to a reviewable draft |
+| AC08 | Decompose | Short editable steps without unsupported claims or mandatory invented dates |
+| AC09 | Review independently | Approve/edit/dismiss one proposal without changing others |
+| AC10 | Avoid duplicate saves | Retried approval creates exactly one task and its steps |
+| AC11 | Persist progress | Task and step changes survive refresh/restart |
+| AC12 | Keep revisions separate | Edited transcript supersedes pending drafts, not approved tasks |
+| AC13 | Keep input accessible | Microphone denied → typed input remains usable |
+| AC14 | Ground companion answers | Answers refer to saved tasks and do not invent completion |
+| AC15 | Separate suggestions from writes | Chat advice does not silently alter task state |
+| AC16 | Keep Kane optional at runtime | App starts and core flow works without Kane credentials |
+| AC17 | Delete capture consistently | Audio/source context removed according to documented policy |
 
-For deletion, show the user whether related tasks will be retained or deleted; default to retaining approved tasks while removing their source link. A failed file deletion remains a retryable cleanup job.
+Proposed deletion policy: deleting a capture removes its audio, transcript, clarification messages and pending drafts. Approved tasks remain unless explicitly selected for deletion; their source pointers and copied source excerpts are removed. Explain this before deletion. A file-removal failure must be visible and retryable, not reported as complete.
 
-## Conditional browser execution
+## Phase B
 
-A separate approval enables one allowed action, such as creating a task in a selected board. Store a snapshot of the approved payload. Execution cannot use a later edited proposal without renewed approval.
+Bot-proposed edits, priorities and rescheduling use the same application's backend. Show a before/after preview and apply only approved changes. Add reliable reminders once scheduling and notification delivery exist. Calendar integrations use service APIs and OAuth. No computer-use agents are planned.
 
-| ID | Requirement | Observable result |
-|---|---|---|
-| BX01 | Explicit execution approval | No external write occurs on transcription or inbox approval alone |
-| BX02 | Verify completion | Destination item and fields match the approved payload |
-| BX03 | Handle uncertain completion | Timeout after a possible write produces `unknown`, not automatic retry |
-| BX04 | Reconcile duplicates | Check for the previously created item before allowing another attempt |
-| BX05 | Session expiry | Show authentication-needed status; preserve approved work |
+## Later
 
-Defer runtime browser execution if the chosen destination fails the initial feasibility spike. Keep Kane development verification regardless.
+Calendar availability, platform-dependent app-usage signals, explicit working-style preferences, optional gamification, reflection, richer inputs and model personalisation. Avoid deriving fixed personality labels from a few conversations.
 
-## Excluded from week one
+## Evaluation
 
-Continuous listening, live calls, email sending, payments/bookings, arbitrary websites, multi-user collaboration, recurring jobs, background reminders, calendar sync, vector search, fine-tuning, and broad multilingual support.
-
-## Success measures
-
-Measure supported-case extraction quality, invented-date rate, edits per approved task, end-to-end latency, processing failures, and duplicate approvals. Report audio transcription errors separately from extraction errors. Targets should be set after measuring the initial fixtures; no accuracy claim is made yet.
+Measure intent extraction, unnecessary questions, step usefulness, invented dates, task-answer grounding, edits before approval, latency and duplicate saves. Keep transcription errors separate from planning failures. Use the synthetic evaluation fixtures as a starting point; they are not a benchmark result.

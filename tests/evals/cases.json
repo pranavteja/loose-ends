@@ -1,42 +1,79 @@
 {
-  "status": "Initial manual fixtures, not an executed evaluation",
+  "status": "Synthetic manual fixtures; not executed",
   "captured_at": "2026-11-14T10:00:00+05:30",
   "timezone": "Asia/Kolkata",
   "cases": [
     {
       "id": "E01",
-      "text": "Remind me to send the proposal tomorrow.",
-      "expected": "One task; tomorrow resolved from capture time; no reminder delivery claim."
+      "category": "negation",
+      "text": "Maybe learn French; do not make it a task.",
+      "expected": "Idea only",
+      "task_context": []
     },
     {
       "id": "E02",
-      "text": "Friday, actually Monday, compare hosting plans.",
-      "expected": "One task using corrected timing or explicit ambiguity flag."
+      "category": "correction",
+      "text": "Friday, actually Monday, compare hosting.",
+      "expected": "Corrected timing or clarification",
+      "task_context": []
     },
     {
       "id": "E03",
-      "text": "Maybe learn French. Do not create a task for it.",
-      "expected": "Idea only; no active task."
+      "category": "decomposition",
+      "text": "I need to send a proposal tomorrow.",
+      "expected": "Suggest short editable steps without assuming draft exists",
+      "task_context": []
     },
     {
       "id": "E04",
-      "text": "I already sent the proposal.",
-      "expected": "No new send task."
+      "category": "skip",
+      "text": "Compare hosting this weekend.",
+      "expected": "Skip clarification still yields reviewable draft with uncertain date flagged",
+      "task_context": []
     },
     {
       "id": "E05",
-      "text": "Buy batteries and update my CV.",
-      "expected": "Two separate undated tasks."
+      "category": "dates",
+      "text": "Finish the report by Friday; work on it Wednesday.",
+      "expected": "Deadline distinct from work session",
+      "task_context": []
     },
     {
       "id": "E06",
-      "text": "Finish the comparison sometime next weekend.",
-      "expected": "Preserve timing phrase; clarify interpretation."
+      "category": "completed",
+      "text": "I already sent the proposal.",
+      "expected": "No new send task",
+      "task_context": []
     },
     {
       "id": "E07",
-      "text": "The weather looks nice today.",
-      "expected": "No actionable proposals."
+      "category": "no-action",
+      "text": "The weather is nice.",
+      "expected": "No tasks",
+      "task_context": []
+    },
+    {
+      "id": "E08",
+      "category": "grounding",
+      "text": "What is left for my proposal?",
+      "expected": "Use saved steps; no invented progress",
+      "task_context": [
+        {
+          "id": "T1",
+          "title": "Send proposal",
+          "status": "open",
+          "steps": [
+            {
+              "title": "Review draft",
+              "completed": true
+            },
+            {
+              "title": "Send proposal",
+              "completed": false
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -1,41 +1,52 @@
-# Proposed API and data contracts
+# Backend contracts — proposed, not implemented
 
-These interfaces are design drafts, not implemented endpoints.
+The browser and Python backend agree on these messages. A contract describes inputs, outputs and failure behaviour so UI and backend work can progress independently.
 
-## HTTP surface
+## Python service contracts first
 
-| Method and route | Behaviour |
+Gradio event handlers call these functions. Keep Gradio component objects out of the service layer so it can be tested independently and exposed through HTTP later.
+
+| Service operation | Behaviour |
 |---|---|
-| POST /captures | Accept text or multipart audio, captured_at, timezone; return 202 with capture/job IDs |
-| GET /captures/{id} | Return processing state, transcript revision, and current proposals |
-| PATCH /captures/{id}/transcript | Optimistic revision check; save edit and enqueue extraction |
-| POST /captures/{id}/retry | Retry failed stage with stable job identity |
-| POST /proposals/{id}/approve | Validate revision and edits; atomically create one inbox item |
-| POST /proposals/{id}/dismiss | Dismiss a pending proposal |
-| GET /items | Filter by type, date, completion state |
-| PATCH /items/{id} | Edit or complete with revision guard |
-| DELETE /captures/{id} | Apply selected task-retention policy; enqueue audio cleanup |
-| POST /items/{id}/executions | Conditional: explicitly approve a destination/payload snapshot |
-| GET /executions/{id} | Conditional: status and evidence references |
+| create_capture(owner, input, captured_at, timezone, request_key) | Persist text/audio and return capture ID/revision |
+| process_capture(owner, capture_id, revision) | Bounded inference; persist attempt and draft or failure |
+| get_capture(owner, capture_id) | Return current transcript, question, draft and status |
+| edit_transcript(owner, capture_id, revision, text) | Save new revision and supersede pending draft |
+| answer_clarification(owner, capture_id, revision, answer_or_skip) | Persist answer and refine draft |
+| approve_proposal(owner, proposal_id, revision, edits, request_key) | Save task and steps in one transaction |
+| dismiss_proposal(owner, proposal_id, revision) | Dismiss current proposal |
+| list_tasks(owner, filters) | Read durable board contents |
+| update_task / update_step(owner, id, revision, changes) | Explicit edits or completion |
+| answer_about_tasks(owner, message) | Grounded answer without task mutation |
+| delete_capture(owner, capture_id, retention_choice) | Remove source under documented retention policy |
 
-Mutations use an idempotency key where retries can create records. Conflicting revisions return 409, invalid data 422, inaccessible records 404, and provider failures surface as job errors. Enforce file-size/duration limits server-side and validate media; the browser's MIME label is not sufficient.
+UI handlers translate structured success/errors into visible controls. Error categories: conflict, invalid_input, not_found, provider_unavailable and processing_failed. If a REST API is introduced later, map these to HTTP statuses then; the MVP does not need a parallel collection of handwritten routes.
 
-## Records
+Capture creation and approval use request keys. Identical retries return the saved result; a reused key with a different payload conflicts. Processing uses attempt IDs and revisions to reject stale results. After an uncertain response, read persisted status before retrying. Gradio's queue schedules events but does not guarantee recovery after a server crash. Persist input first, mark abandoned attempts retryable on restart, and enforce audio limits in backend code.
 
-| Entity | Key fields |
+## Minimal records
+
+| Record | Main fields |
 |---|---|
-| Capture | id, owner_id, type, captured_at, timezone, audio_path, transcript, revision, status |
-| Proposal | id, capture_id, revision, type, title, description, source_excerpt, timing_phrase, due_date, due_at, timezone, needs_clarification, state |
-| InboxItem | id, owner_id, proposal_id, type, title, description, due_date/due_at, timezone, status, revision |
-| Job | id, capture_id, stage, revision, status, attempts, lease_until, error_code |
-| Execution | id, item_id, destination, approved_payload, idempotency_key, status, destination_item_id, evidence_ref |
+| Capture | id, owner_id, type, captured_at, timezone, audio_path, transcript, revision, state, attempt_id, attempt_started_at, error_code |
+| Clarification | id, capture_id, revision, question, answer, skipped, created_at |
+| Proposal | id, capture_id, revision, type, title, description, source_excerpt, timing_phrase, due_date, due_at, work_start_at, timezone, needs_clarification, state, proposed_steps |
+| Task | id, owner_id, proposal_id, type, title, description, due_date, due_at, work_start_at, timezone, status, revision |
+| Step | id, task_id, position, title, completed, revision |
+| RequestReceipt | owner_id, operation, request_key, payload_hash, result_id |
 
-Unique proposal_id on InboxItem prevents duplicate approval. Do not persist raw authentication cookies in these records. Resolve source excerpts against the transcript; flag unsupported excerpts. No self-reported model confidence score is treated as calibrated probability.
+Store proposed steps as validated JSON initially; approved steps become separate rows. Enforce one Task per proposal_id. Choose either due_date or due_at, not contradictory values. Ideas can be stored in Task with type=idea, excluded from active-task lists. Source metadata is separate from user-edited task text.
 
-## Provider interfaces
+A transaction writes the task, steps, and approval state together. This avoids a task saved without its steps if the process fails. Revision comparisons avoid overwriting a newer edit. Use owner_id checks even in a single-user deployment so later authentication does not depend on retrofitting every query.
 
-`transcribe(audio_reference) -> transcript + optional segments`
+## Model boundaries
 
-`extract_actions(transcript, captured_at, timezone) -> validated proposal candidates`
+- `transcribe(audio) -> transcript`
+- `propose_plan(transcript, replies, captured_at, timezone, question_budget) -> question_or_proposals`
+- `answer_about_tasks(message, task_context) -> answer + referenced_task_ids`
 
-The backend, not the model, assigns IDs and status. Empty action lists are valid. Retry transient provider failures with a bounded policy; malformed output gets at most a bounded repair attempt before a visible failure. Never silently discard a capture.
+One provider can implement all roles. IDs, database writes and permissions belong to backend code. Models suggest content, not SQL, shell commands or arbitrary tool calls. Null dates and empty action lists are valid.
+
+## Later contracts
+
+Phase B adds proposed-change records with original task revision and approved before/after values. Calendar integration adds an OAuth connection and sync records. Reminder scheduling adds notification delivery state. These records are deliberately absent from the Phase A schema.
