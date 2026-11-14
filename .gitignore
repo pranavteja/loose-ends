@@ -1,0 +1,17 @@
+# Secrets and local runtime data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.browser-sessions/
+data/
+*.db
+*.sqlite*
+# Build and caches
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store

@@ -1,0 +1,42 @@
+{
+  "status": "Initial manual fixtures, not an executed evaluation",
+  "captured_at": "2026-11-14T10:00:00+05:30",
+  "timezone": "Asia/Kolkata",
+  "cases": [
+    {
+      "id": "E01",
+      "text": "Remind me to send the proposal tomorrow.",
+      "expected": "One task; tomorrow resolved from capture time; no reminder delivery claim."
+    },
+    {
+      "id": "E02",
+      "text": "Friday, actually Monday, compare hosting plans.",
+      "expected": "One task using corrected timing or explicit ambiguity flag."
+    },
+    {
+      "id": "E03",
+      "text": "Maybe learn French. Do not create a task for it.",
+      "expected": "Idea only; no active task."
+    },
+    {
+      "id": "E04",
+      "text": "I already sent the proposal.",
+      "expected": "No new send task."
+    },
+    {
+      "id": "E05",
+      "text": "Buy batteries and update my CV.",
+      "expected": "Two separate undated tasks."
+    },
+    {
+      "id": "E06",
+      "text": "Finish the comparison sometime next weekend.",
+      "expected": "Preserve timing phrase; clarify interpretation."
+    },
+    {
+      "id": "E07",
+      "text": "The weather looks nice today.",
+      "expected": "No actionable proposals."
+    }
+  ]
+}
