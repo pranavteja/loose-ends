@@ -36,6 +36,11 @@ let room = null;
 let agentParticipant = null;
 let attachedAudio = new Map();
 let spokenSegments = new Set();
+let activeUtterance = null;
+let speechGeneration = 0;
+let speechPrimed = false;
+let useSystemDefaultVoice = false;
+const intentionallyCancelledUtterances = new WeakSet();
 let reviewProposals = [];
 let selectedProposalId = null;
 let toastTimer = null;
@@ -136,6 +141,129 @@ function preferredBrowserVoice() {
     || voices[0];
 }
 
+function primeBrowserSpeech() {
+  if (speechPrimed || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
+  speechPrimed = true;
+  window.speechSynthesis.resume();
+  window.speechSynthesis.getVoices();
+
+  // Prime speech from the user's click so autoplay protection does not block
+  // the delayed agent response when it arrives.
+  const warmup = new SpeechSynthesisUtterance(' ');
+  warmup.volume = 0;
+  warmup.rate = 2;
+  warmup.onerror = () => {};
+  window.speechSynthesis.speak(warmup);
+}
+
+function stopBrowserSpeech() {
+  if (!('speechSynthesis' in window)) return;
+  speechGeneration += 1;
+  if (activeUtterance) intentionallyCancelledUtterances.add(activeUtterance);
+  activeUtterance = null;
+  window.speechSynthesis.cancel();
+}
+
+function speechChunks(text, maxLength = 240) {
+  const cleaned = text
+    .replace(/https?:\/\/\S+/gi, 'link')
+    .replace(/[*_`#>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return [];
+
+  const sentences = cleaned.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleaned];
+  const chunks = [];
+  let current = '';
+  sentences.forEach((sentence) => {
+    const candidate = `${current} ${sentence}`.trim();
+    if (candidate.length <= maxLength) {
+      current = candidate;
+      return;
+    }
+    if (current) chunks.push(current);
+    const words = sentence.trim().split(/\s+/);
+    current = '';
+    words.forEach((word) => {
+      const wordCandidate = `${current} ${word}`.trim();
+      if (wordCandidate.length > maxLength && current) {
+        chunks.push(current);
+        current = word;
+      } else {
+        current = wordCandidate;
+      }
+    });
+  });
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function playSpeechChunk(chunks, index, generation, attempt = 0) {
+  if (!room || generation !== speechGeneration || index >= chunks.length) {
+    if (room && generation === speechGeneration) setStatus('listening');
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(chunks[index]);
+  utterance.lang = 'en-US';
+  utterance.rate = 1.02;
+  utterance.pitch = 1;
+  if (!useSystemDefaultVoice && attempt === 0) {
+    const voice = preferredBrowserVoice();
+    if (voice) utterance.voice = voice;
+  }
+
+  activeUtterance = utterance;
+  utterance.onstart = () => {
+    if (generation === speechGeneration) {
+      setStatus('speaking', 'Loose Ends is responding — speak to interrupt.');
+    }
+  };
+  utterance.onend = () => {
+    if (activeUtterance === utterance) activeUtterance = null;
+    if (generation !== speechGeneration) return;
+    if (index + 1 < chunks.length) {
+      window.setTimeout(() => playSpeechChunk(chunks, index + 1, generation), 40);
+    } else if (room) {
+      setStatus('listening');
+    }
+  };
+  utterance.onerror = (event) => {
+    if (activeUtterance === utterance) activeUtterance = null;
+    const errorCode = event.error || 'unknown';
+    console.error('Browser speech playback failed', { error: errorCode, attempt: attempt + 1 });
+    if (
+      intentionallyCancelledUtterances.has(utterance)
+      || errorCode === 'interrupted'
+      || errorCode === 'canceled'
+      || generation !== speechGeneration
+    ) return;
+
+    const cannotRetry = ['not-allowed', 'text-too-long', 'invalid-argument'].includes(errorCode);
+    if (attempt === 0 && !cannotRetry) {
+      useSystemDefaultVoice = true;
+      setStatus('thinking', 'Voice playback paused for a moment — recovering…');
+      window.setTimeout(() => playSpeechChunk(chunks, index, generation, 1), 250);
+      return;
+    }
+    setStatus('error', `I understood and replied, but the system voice failed (${errorCode}). End and restart the conversation.`);
+  };
+
+  try {
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(utterance);
+  } catch (error) {
+    console.error('Browser speech playback could not start', error);
+    if (activeUtterance === utterance) activeUtterance = null;
+    if (attempt === 0 && generation === speechGeneration) {
+      useSystemDefaultVoice = true;
+      window.setTimeout(() => playSpeechChunk(chunks, index, generation, 1), 250);
+    } else if (generation === speechGeneration) {
+      setStatus('error', 'I understood and replied, but the system voice could not start. End and restart the conversation.');
+    }
+  }
+}
+
 function speakAssistantReply(text, segmentId) {
   if (!text?.trim() || spokenSegments.has(segmentId)) return;
   spokenSegments.add(segmentId);
@@ -144,21 +272,12 @@ function speakAssistantReply(text, segmentId) {
     return;
   }
 
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'en-US';
-  utterance.rate = 1.02;
-  utterance.pitch = 1;
-  const voice = preferredBrowserVoice();
-  if (voice) utterance.voice = voice;
-  utterance.onstart = () => setStatus('speaking', 'Loose Ends is responding — speak to interrupt.');
-  utterance.onend = () => { if (room) setStatus('listening'); };
-  utterance.onerror = (event) => {
-    if (event.error !== 'interrupted' && event.error !== 'canceled') {
-      setStatus('error', 'The browser could not speak the response. Reconnect and try again.');
-    }
-  };
-  window.speechSynthesis.speak(utterance);
+  const chunks = speechChunks(text);
+  if (!chunks.length) return;
+  const wasBusy = Boolean(activeUtterance || window.speechSynthesis.speaking || window.speechSynthesis.pending);
+  if (wasBusy) stopBrowserSpeech();
+  const generation = ++speechGeneration;
+  window.setTimeout(() => playSpeechChunk(chunks, 0, generation), wasBusy ? 180 : 0);
 }
 
 function attachRemoteAudio(track, publication) {
@@ -210,7 +329,7 @@ async function receiveTranscript(reader, participant) {
   const isFinal = isTrackTranscript ? attributes['lk.transcription_final'] === 'true' : true;
   const role = participant?.identity === room?.localParticipant.identity ? 'user' : 'assistant';
   if (role === 'user' && isFinal) {
-    window.speechSynthesis?.cancel();
+    stopBrowserSpeech();
     setStatus('thinking');
   }
   if (role === 'assistant' && isFinal) {
@@ -225,7 +344,7 @@ function wireRoom(nextRoom) {
       setStatus('connecting', 'Connected. Waiting for the planning companion…');
     }
     if (state === ConnectionState.Disconnected) {
-      window.speechSynthesis?.cancel();
+      stopBrowserSpeech();
       agentParticipant = null;
       setStatus('offline');
     }
@@ -239,8 +358,8 @@ function wireRoom(nextRoom) {
     const userIsSpeaking = participants.some(
       (participant) => participant.identity === nextRoom.localParticipant.identity,
     );
-    if (userIsSpeaking && window.speechSynthesis?.speaking) {
-      window.speechSynthesis.cancel();
+    if (userIsSpeaking && (window.speechSynthesis?.speaking || window.speechSynthesis?.pending)) {
+      stopBrowserSpeech();
       setStatus('listening', 'Go ahead—I stopped speaking and I’m listening.');
     }
   });
@@ -280,6 +399,7 @@ async function startConversation() {
     return;
   }
 
+  primeBrowserSpeech();
   connectButton.disabled = true;
   setStatus('connecting');
   try {
