@@ -17,7 +17,7 @@ Example flow:
 
 1. User says: "Book a cafe visit with Sara from 3 to 5 PM today."
 2. Backend processes voice, extracts `fromDate`, `toDate`, `userId`, etc.
-3. If `location` is missing, backend returns text + JSON + optional audio:
+3. If `location` is missing, backend returns text + JSON; the frontend speaks the text:
    "Which location do you want to book?"
 4. User says: "Jayanagar."
 5. Backend appends location to the same session JSON.
@@ -28,6 +28,7 @@ Example flow:
 Important correction:
 - Voice output itself does NOT create the booking.
 - Booking is created only when `POST /confirmation` succeeds.
+- Frontend speaks the returned `text` using browser SpeechSynthesis; backend does not generate audio.
 
 ## 2. Technical stack
 
@@ -35,7 +36,7 @@ Important correction:
 - Frontend: S3 + CloudFront, but ignore frontend implementation for now
 - Database: AWS DynamoDB
 - Voice-to-text: OpenAI Whisper / OpenAI speech-to-text
-- Text-to-speech: optional, return audio as base64 mp3
+- Text-to-speech: frontend browser SpeechSynthesis API; backend returns text only
 - Auth: custom JWT, no external OAuth/Cognito
 - Audio files are processed but not stored
 
@@ -375,9 +376,9 @@ Backend steps:
 4. Load/create chat session item in `userProfiles`.
 5. Append user message to `messages`.
 6. Update `fromDate`, `toDate`, and/or `location`.
-7. Check missing fields.
-8. Check booking collision.
-9. Return text + JSON + optional audio.
+7. Check booking collision first.
+8. If no collision, check missing fields.
+9. Return text + JSON. Frontend speaks the text if needed.
 
 Response when location missing:
 
@@ -387,10 +388,6 @@ Response when location missing:
   "turn": 1,
   "stage": "AWAITING_LOCATION",
   "text": "Which location do you want to book?",
-  "voiceOutput": {
-    "format": "mp3",
-    "base64": "<optional-audio-base64>"
-  },
   "session": {
     "sessionId": "session-1",
     "fromDate": "2026-11-18T15:00:00",
@@ -402,6 +399,41 @@ Response when location missing:
 }
 ```
 
+Response when there is a collision:
+
+```json
+{
+  "sessionId": "session-1",
+  "turn": 1,
+  "stage": "CONFLICT",
+  "text": "You already have a booking from 2:00 PM to 4:00 PM. Please reselect the time.",
+  "conflicts": [
+    {
+      "bookingId": "booking_1",
+      "fromDate": "2026-11-18T14:00:00",
+      "toDate": "2026-11-18T16:00:00",
+      "location": "Jayanagar"
+    }
+  ],
+  "session": {
+    "sessionId": "session-1",
+    "fromDate": "2026-11-18T15:00:00",
+    "toDate": "2026-11-18T17:00:00",
+    "location": null,
+    "missingFields": ["location"],
+    "status": "CONFLICT"
+  }
+}
+```
+
+Collision rules:
+
+- Collision is checked before missing fields.
+- Do not ask for location while `stage` is `CONFLICT`.
+- Keep the same `sessionId`; do not create a new session.
+- Next voice input updates `fromDate`/`toDate` in the same session and reruns collision check.
+- No booking is written on `CONFLICT`.
+
 Response when all fields are complete:
 
 ```json
@@ -410,10 +442,6 @@ Response when all fields are complete:
   "turn": 2,
   "stage": "READY_TO_CONFIRM",
   "text": "You want to book Jayanagar from 3 PM to 5 PM today. Should I confirm?",
-  "voiceOutput": {
-    "format": "mp3",
-    "base64": "<optional-audio-base64>"
-  },
   "session": {
     "sessionId": "session-1",
     "fromDate": "2026-11-18T15:00:00",
@@ -532,7 +560,9 @@ ERROR
 - Chat sessions live inside `userProfiles` as separate items.
 - Bookings live in `bookings`.
 - `POST /confirmation` is the only place that writes to `bookings`.
-- Voice output is optional and returned as base64 mp3.
+- Collision check runs before missing-field questions.
+- A `CONFLICT` response never writes to `bookings`.
+- Backend does not generate voice audio; frontend speaks `text` via browser SpeechSynthesis.
 - Audio files are not stored.
 - `userId` always comes from JWT, never from request body.
 - `GET /userProfile` never returns password.
