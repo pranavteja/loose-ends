@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from loose_ends.config import Settings
 from loose_ends.database import Database
+from loose_ends.groq_adapter import ProviderError
 from loose_ends.services import LooseEndsService
-from loose_ends.voice_agent import _is_explicit_draft_request, _is_explicit_draft_revision
+from loose_ends.voice_agent import (
+    ConversationRecorder,
+    PlanningCompanion,
+    _is_explicit_draft_request,
+    _is_explicit_draft_revision,
+)
 
 
 class FakePlanner:
@@ -100,6 +109,7 @@ class ServiceTests(unittest.TestCase):
     def test_draft_creation_requires_an_explicit_affirmative_request(self) -> None:
         self.assertTrue(_is_explicit_draft_request("Okay, make a draft now"))
         self.assertTrue(_is_explicit_draft_request("Send this to review"))
+        self.assertTrue(_is_explicit_draft_request("Try the draft again"))
         self.assertFalse(_is_explicit_draft_request("I need to send a parcel"))
         self.assertFalse(_is_explicit_draft_request("Don't make a draft yet"))
 
@@ -121,6 +131,49 @@ class ServiceTests(unittest.TestCase):
         self.assertNotEqual(review[0]["id"], first["id"])
         self.assertEqual(review[0]["source_excerpt"], "Send the revised proposal on Friday")
         self.assertEqual(self.service.get_proposal(first["id"])["state"], "superseded")
+
+    def test_failed_voice_draft_retries_the_same_capture(self) -> None:
+        original_propose_plan = self.planner.propose_plan
+        failures_remaining = 1
+
+        def fail_once(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal failures_remaining
+            if failures_remaining:
+                failures_remaining -= 1
+                raise ProviderError("Planning is temporarily unavailable.")
+            return original_propose_plan(*args, **kwargs)
+
+        self.planner.propose_plan = fail_once  # type: ignore[method-assign]
+        companion = PlanningCompanion(self.service)
+
+        async def run_synchronously(function: Any, *args: Any) -> Any:
+            return function(*args)
+
+        # LiveKit's test process owns worker threads, so keep this unit test
+        # deterministic while exercising the same branching and service calls.
+        with patch("loose_ends.voice_agent.asyncio.to_thread", new=run_synchronously):
+            with self.assertRaises(ProviderError):
+                asyncio.run(companion._persist_review_draft("Send the proposal tomorrow"))
+            failed_capture_id = companion._active_capture_id
+            self.assertIsNotNone(failed_capture_id)
+            self.assertEqual(self.service.get_capture(failed_capture_id)["state"], "failed")
+
+            result = asyncio.run(
+                companion._persist_review_draft("Send the proposal tomorrow")
+            )
+        self.assertEqual(result["action"], "retried")
+        self.assertEqual(companion._active_capture_id, failed_capture_id)
+        self.assertEqual(len(self.service.list_review_proposals()), 1)
+
+    def test_conversation_recorder_writes_local_json_lines(self) -> None:
+        transcript_path = self.settings.data_dir / "logs" / "conversations" / "room.jsonl"
+        recorder = ConversationRecorder(transcript_path, "room")
+        recorder.append("message", role="assistant", text="One concise reply.")
+
+        records = [json.loads(line) for line in transcript_path.read_text().splitlines()]
+        self.assertEqual(records[0]["room"], "room")
+        self.assertEqual(records[0]["event"], "message")
+        self.assertEqual(records[0]["text"], "One concise reply.")
 
 
 if __name__ == "__main__":

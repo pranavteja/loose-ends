@@ -124,7 +124,12 @@ class GroqAdapter:
             response = self._client().chat.completions.create(
                 model=self.settings.extraction_model,
                 temperature=0.2,
-                max_completion_tokens=1200,
+                # Structured planning needs room for both OSS reasoning tokens
+                # and the final JSON document. Low effort keeps the free-tier
+                # request focused while 2,000 tokens prevents valid drafts from
+                # being cut off before the schema can close.
+                reasoning_effort="low",
+                max_completion_tokens=2000,
                 messages=[
                     {"role": "system", "content": PLANNER_INSTRUCTIONS},
                     {"role": "user", "content": json.dumps(context, ensure_ascii=False)},

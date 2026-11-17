@@ -120,7 +120,7 @@ python -m unittest discover -s tests -v
 curl http://127.0.0.1:7861/api/health
 ```
 
-If a provider call fails, persisted data remains available for retry. Runtime logs are kept under `data/logs/`, which is ignored by Git.
+If a provider call fails, persisted data remains available for retry. Runtime logs are kept under `data/logs/`, which is ignored by Git. Each voice room also writes a private diagnostic transcript to `data/logs/conversations/<room-name>.jsonl`, including user/agent messages, speech events, and draft-tool outcomes. This stays local and is never rendered in the voice UI; delete it whenever you no longer need it for debugging.
 
 ## Product and engineering documents
 

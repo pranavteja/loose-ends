@@ -8,8 +8,11 @@ approved task to the local board.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from livekit import agents
@@ -27,7 +30,7 @@ from livekit.plugins import groq, silero
 
 from .config import Settings
 from .database import Database
-from .groq_adapter import GroqAdapter
+from .groq_adapter import GroqAdapter, ProviderError
 from .services import LooseEndsService, ServiceError
 from .voice_config import VoiceSettings
 
@@ -35,9 +38,41 @@ from .voice_config import VoiceSettings
 logger = logging.getLogger("loose_ends.voice")
 
 
+class ConversationRecorder:
+    """Append a private, per-room diagnostic transcript as JSON Lines."""
+
+    def __init__(self, path: Path, room_name: str) -> None:
+        self.path = path
+        self.room_name = room_name
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def append(self, event_type: str, **payload: Any) -> None:
+        record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "room": self.room_name,
+            "event": event_type,
+            **payload,
+        }
+        try:
+            with self.path.open("a", encoding="utf-8") as transcript_file:
+                transcript_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except OSError as error:
+            # A diagnostic log must never break the live conversation.
+            logger.warning("Could not write conversation transcript: %s", error)
+
+
+def _json_or_text(value: str) -> Any:
+    """Decode SDK tool payloads when possible while preserving plain text."""
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return value
+
+
 _DRAFT_REQUEST_PATTERNS = (
     r"\b(?:make|create|prepare)\s+(?:a\s+)?draft\b",
     r"\bdraft\s+(?:it|this|that)\b",
+    r"\b(?:try|retry)\s+(?:the\s+)?draft(?:\s+again)?\b",
     r"\b(?:put|send|save|move)\s+(?:it|this|that|the plan)?\s*(?:in|to|for)\s+review\b",
     r"\bready\s+for\s+review\b",
 )
@@ -143,17 +178,21 @@ board tool is read-only. Do not use tools during the opening greeting.
                 draft["capture_id"] == self._active_capture_id for draft in pending
             )
             if not active_is_pending:
-                return {
-                    "error": "The active draft is no longer waiting for review.",
-                    "instruction": "Do not change approved work. Ask the user to start a new plan instead.",
-                    "approval_required": True,
-                }
+                capture = await asyncio.to_thread(
+                    self._service.get_capture, self._active_capture_id
+                )
+                if capture["state"] != "failed":
+                    return {
+                        "error": "The active draft is no longer waiting for review.",
+                        "instruction": "Do not change approved work. Ask the user to start a new plan instead.",
+                        "approval_required": True,
+                    }
             result = await asyncio.to_thread(
                 self._service.edit_transcript_and_process,
                 self._active_capture_id,
                 spoken_note,
             )
-            action = "revised"
+            action = "retried" if not active_is_pending else "revised"
         else:
             self._active_capture_id = await asyncio.to_thread(
                 self._service.create_text_capture,
@@ -203,9 +242,17 @@ board tool is read-only. Do not use tools during the opening greeting.
         context.disallow_interruptions()
         try:
             return await self._persist_review_draft(spoken_note)
-        except ServiceError as error:
+        except (ServiceError, ProviderError) as error:
             logger.info("Voice draft creation failed: %s", error)
-            return {"error": str(error), "capture_saved": True}
+            return {
+                "error": str(error),
+                "capture_saved": True,
+                "retryable": True,
+                "instruction": (
+                    "Tell the user the plan is safely kept locally, the draft could not be prepared yet, "
+                    "and they can say 'try the draft again'."
+                ),
+            }
 
     @function_tool()
     async def revise_review_draft(self, context: RunContext, revised_spoken_note: str) -> dict[str, Any]:
@@ -236,9 +283,17 @@ board tool is read-only. Do not use tools during the opening greeting.
         context.disallow_interruptions()
         try:
             return await self._persist_review_draft(revised_spoken_note)
-        except ServiceError as error:
+        except (ServiceError, ProviderError) as error:
             logger.info("Voice draft revision failed: %s", error)
-            return {"error": str(error), "draft_preserved": True}
+            return {
+                "error": str(error),
+                "draft_preserved": True,
+                "retryable": True,
+                "instruction": (
+                    "Tell the user the existing plan is safe, the revision could not be prepared yet, "
+                    "and they can ask to try that change again."
+                ),
+            }
 
     @function_tool()
     async def read_board(self, context: RunContext) -> list[dict[str, Any]]:
@@ -273,6 +328,14 @@ server = AgentServer(setup_fnc=prewarm)
 @server.rtc_session(agent_name=VoiceSettings.from_env().agent_name)
 async def voice_entrypoint(ctx: JobContext) -> None:
     voice = VoiceSettings.from_env()
+    settings = Settings.from_env()
+    settings.ensure_directories()
+    safe_room_name = re.sub(r"[^A-Za-z0-9._-]", "_", ctx.room.name)
+    recorder = ConversationRecorder(
+        settings.data_dir / "logs" / "conversations" / f"{safe_room_name}.jsonl",
+        ctx.room.name,
+    )
+    recorder.append("session_started")
     service = _planner_service()
     session = AgentSession(
         # Groq Whisper is final-segment transcription. VAD supplies natural
@@ -296,6 +359,41 @@ async def voice_entrypoint(ctx: JobContext) -> None:
                 len(event.transcript),
             )
             companion.observe_user_turn(event.transcript)
+
+    @session.on("conversation_item_added")
+    def record_conversation_item(event: Any) -> None:
+        item = event.item
+        role = getattr(item, "role", None)
+        text = getattr(item, "text_content", None)
+        if role in {"user", "assistant"} and isinstance(text, str) and text.strip():
+            recorder.append(
+                "message",
+                role=role,
+                text=text.strip(),
+                item_id=getattr(item, "id", None),
+                interrupted=bool(getattr(item, "interrupted", False)),
+            )
+
+    @session.on("function_tools_executed")
+    def record_function_tools(event: Any) -> None:
+        for call, output in event.zipped():
+            recorder.append(
+                "tool",
+                name=call.name,
+                call_id=call.call_id,
+                arguments=_json_or_text(call.arguments),
+                output=_json_or_text(output.output),
+                is_error=output.is_error,
+            )
+
+    @session.on("speech_created")
+    def record_speech_created(event: Any) -> None:
+        recorder.append(
+            "speech_created",
+            speech_id=event.speech_handle.id,
+            source=event.source,
+            user_initiated=event.user_initiated,
+        )
 
     await session.start(
         agent=companion,
