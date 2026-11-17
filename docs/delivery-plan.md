@@ -1,50 +1,48 @@
 # Delivery plan
 
-The approved scope adds clarification, decomposition and a task-aware bot beyond the original inbox. Treat the earlier 25–35 hour estimate as superseded. A provisional budget is 35–50 combined engineering hours for a modest prototype, including integration and demo work; validate this after the first slice. This is not a delivery guarantee.
+The voice-first shell is now the baseline. Do not continue parallel Gradio UI work. Development should deepen the complete Talk → Review → Board journey while retaining the Python service and SQLite boundaries.
 
 ## Build in useful slices
 
 | Slice | Deliverable | Done when |
 |---|---|---|
-| 1 | Typed capture → draft → approval → board | Data persists; first Kane flow verifies it |
-| 2 | Optional clarification and editable steps | Skip works; steps save with parent task |
-| 3 | Browser voice recording | Transcript editable; failed inference can retry |
-| 4 | Task-aware home bot | Answers use saved tasks; no hidden writes |
-| 5 | Reliability and demo | Revision/duplicate checks pass; mobile layout reviewed |
+| 1 — complete | Real-time Talk experience | Turn-taking, captions, typed fallback, browser speech, and interruption work. |
+| 2 — complete | Unified navigation and handoff | One port; no iframe; draft badge; end conversation opens Review. |
+| 3 — complete | Editable Review and navigable Board | Approve/dismiss and task/step status work through local APIs. |
+| 4 | Reliability pass | Join timeout, provider failures, stale drafts, and reconnects have tested recovery. |
+| 5 | Device and accessibility pass | Keyboard, reduced motion, narrow layout, microphone permission, and system voices are checked. |
+| 6 | Demo and evaluation | Synthetic end-to-end script is repeatable and logs/tests provide evidence. |
 
-Keep Gradio Blocks and one Python application. Do not start with a queue, React build, Java/Python service split, or separate agents for every role.
+## Priority order
 
-## Proposed event schedule (IST)
+1. Protect the full successful journey and persistence.
+2. Make failures recoverable without losing the conversation or draft.
+3. Test the actual target browsers and microphone.
+4. Improve transcription/prompt quality using recorded synthetic cases.
+5. Add features only after the journey is dependable.
 
-| Date | Focus |
-|---|---|
-| Nov 14 | Final detailed review, credential/tool spike, agree contracts |
-| Nov 15 | Slice 1 and first agent/Kane evidence |
-| Nov 16 | Clarification and essential substeps |
-| Nov 17 | Recording and grounded task chat |
-| Nov 18 | Failure cases, mobile checks, access/setup |
-| Nov 19 | Freeze, three-minute demo and submission by 23:59 |
+Defer external calendars, reminders, autonomous updates, nested subtasks, drag-and-drop, and a public multi-user deployment.
 
-If capacity is insufficient, reduce question rounds, filters and visual polish. Keep one clarification or skip path, essential steps, bot access, and the full save loop. Defer audio uploads, autonomous updates, reminders and integrations entirely.
+## Suggested ownership
 
-## Suggested team split
-
-| Owner | Work | Handoff |
+| Area | Work | Handoff |
 |---|---|---|
-| Pranav | Model adapters, prompts, evaluation, transcription | Validated proposal examples and error cases |
-| Backend colleague | Service contracts, SQLite, transactions, revisions, deployment | Typed service inputs/results |
-| Shared | Gradio Blocks interfaces and Kane integration | One owner for each acceptance criterion |
+| Voice/model | Whisper/OSS 20B prompts, draft-tool behaviour, evaluation cases | Reproducible conversations and expected proposals |
+| Backend | API/service contracts, SQLite integrity, conflicts, retention | Tested JSON and persistence behaviour |
+| Frontend | Talk/Review/Board state, accessibility, device behaviour | Complete browser journey with clear recovery states |
+| Shared | Demo script, synthetic data, regression evidence | One owner per acceptance criterion |
 
-Responsibilities require the colleague's agreement; nobody has been invited or assigned automatically. Python is the agreed starting direction; confirm comfort before coding rather than adding a second backend by default.
+Assignments still require the people involved to agree; this table describes responsibility boundaries rather than assigning anyone automatically.
 
 ## Definition of done
 
-Real input reaches actual inference, approved tasks/steps persist, and the bot answers from saved state. Retries do not duplicate saves. Meaningful Kane evidence reaches the coding agent; ordinary tests work independently. No passing run is claimed before execution. Setup instructions match actual commands, and any fixture replay is clearly labelled. The shared demo uses synthetic data and works without reviewer model downloads.
+- A user can start with speech, refine the thought, explicitly create a draft, edit it, approve it, and track it without leaving the product shell.
+- The next action is clear at every empty, loading, success, and failure state.
+- Secrets remain server-side and the default app is loopback-only.
+- Repeated approval cannot duplicate a task; persisted state survives restart.
+- Tests and the runbook match the commands that actually work.
+- The demo uses synthetic content and does not depend on hidden manual database edits.
 
-## After the hackathon
+## After the first reliable demo
 
-Use it personally first. Record where clarification helps versus annoys. Add approved plan updates, then reminders or calendar integration based on that evidence. Personalisation starts with editable preferences, not fine-tuning. Revisit infrastructure only when measured needs justify it.
-
-## First-day framework checks
-
-Prove microphone capture on Debian and the target phone, one editable proposal with steps, a refresh that restores saved data, and a meaningful Kane run on the rendered UI. Check duplicate approvals and stale inference results. These are implementation gates, not claims that tests have already passed. Pin the tested package version after the spike. Do not build both Gradio and another frontend in parallel.
+Use the app personally and record where turn detection, transcription, or clarification breaks the flow. Prefer prompt and interaction fixes backed by those cases. Add proposed updates to existing tasks before considering automatic changes. Personalisation should begin with explicit preferences rather than fine-tuning.

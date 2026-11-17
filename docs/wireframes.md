@@ -1,43 +1,70 @@
-# Wireframes
+# Implemented UI plan
 
-Static sketches for implementation discussion, not a running product. Labels and example data are synthetic.
+This plan replaces the original static Gradio wireframes. The working voice interface is the visual and interaction baseline.
 
-## Desktop home
+## Shared shell
 
-![Desktop home](wireframes/home.svg)
+Every view uses the same warm paper background, forest/olive palette, editorial typography, brand header, and persistent navigation:
 
-Bot stays beside a task summary. Record has explicit start/stop states. Text input remains available if microphone permission is denied. “Review plan” opens suggestions; it does not create tasks directly. “Fewer questions” limits clarification rather than suppressing unresolved dates.
+```text
+┌ Loose Ends ─────────── [ Talk ] [ Review 2 ] [ Board ] ── Listening ┐
+│                                                                       │
+│                         active view                                   │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────────┘
+```
 
-## Review a plan
+On narrow screens, the navigation moves below the brand. No content is embedded from another page and no action opens a second local product.
 
-![Plan review](wireframes/review.svg)
+## Talk
 
-Original words appear beside editable suggestions. Deadline and suggested work time are different. Steps are removable and clearly marked as AI suggestions. Approval applies to this proposal only; dismissed proposals do not enter the board. Saving and error states belong next to the approval button.
+The voice orb remains the primary interaction. Live notes sit beside it on desktop and below it on mobile. A short journey guide makes completion explicit:
 
-## Mobile task board
+```text
+Talk naturally → say “make a draft” → review and approve
+```
 
-![Mobile task board](wireframes/mobile.svg)
+When a persisted draft appears, Talk shows a high-visibility “Draft ready — Review draft” card and increments the Review badge. Ending a conversation opens Review if a draft exists. If none exists, a message explains exactly what to say next time.
 
-Persistent Bot/Board navigation keeps the companion reachable without covering the board. The initial board uses lists, not drag-and-drop. Opening a card shows ordered steps and original context if retained.
+Important Talk states:
 
-## Important states to implement
-
-| State | User-facing behaviour |
+| State | Behaviour |
 |---|---|
-| Empty | Explain capture and show one short example |
-| Recording | Timer and Stop; no automatic submission on pauses |
-| Processing | Keep input visible; disable duplicate submission |
-| Clarification | Answer, Skip, or Fewer questions |
-| Ambiguous date | Mark missing detail; let user choose or leave unscheduled |
-| Provider failure | Input retained; clear Retry action |
-| Stale draft | Explain newer version exists and reload it |
-| Already approved | Open existing task instead of creating another |
-| Saved | Confirm task/steps and link to board |
+| Offline | Orb says Start talking; typed input is disabled. |
+| Connecting | Explain whether the room or companion is being awaited. |
+| Listening | Animate the orb/wave; microphone remains interruptible. |
+| Thinking | Preserve the transcript and show a distinct warm state. |
+| Speaking | Speak final agent text and allow the user to interrupt. |
+| Draft ready | Show Review badge and handoff card without ending the room. |
+| Ended without draft | Stay on Talk and explain “say make a draft.” |
 
-The wireframes cover normal paths; the table defines states designers and developers must add during implementation.
+## Review
 
-## Gradio interpretation
+Review is a master-detail workspace. The left side lists pending drafts; the right side edits the selected draft.
 
-These sketches express content and navigation, not pixel-exact layouts. Use Blocks rows/columns for desktop and tabs/panels for narrow screens. The first implementation may show a task selector with a detail editor rather than custom cards. Keep chat reachable and review explicit. Test actual responsive behaviour; do not assume the sketches are delivered by default.
+Editable fields are title, description, due date, suggested work time, and one step per line. The source excerpt and unresolved detail stay visible. The two outcomes are Dismiss or Approve & add to board. Approval navigates directly to Board.
 
-See [local preview instructions](local-preview.md) to view relative SVG images and Mermaid diagrams on Debian.
+An empty Review view explains the complete path back to Talk instead of presenting a blank page.
+
+## Board
+
+The Board groups approved records into:
+
+- In progress
+- Ideas
+- Finished & set aside
+
+Task cards show date context, editable progress through checkboxes, and explicit Complete, Cancel, or Reopen actions. Completing a step does not silently complete its parent. A “Talk through another” action returns to the voice experience.
+
+## Navigation acceptance criteria
+
+- Talk, Review, and Board are reachable from every view in one click.
+- The current view is visibly selected and exposed with `aria-current`.
+- A reload preserves the selected hash route.
+- Creating a draft updates the Review badge without a full reload.
+- Ending a conversation with a draft opens Review.
+- Approving a draft opens Board.
+- Empty states always offer a useful next action.
+- Mobile navigation and editors do not depend on hover or drag-and-drop.
+
+The old SVG files in `docs/wireframes/` are historical exploration only and are not authoritative for implementation.

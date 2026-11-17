@@ -2,33 +2,30 @@
 
 ## Confirmed direction
 
-- Home-screen companion, optional clarification and essential substeps.
-- Internal task board; Phase A first, Phase B later.
-- No computer-use agents or runtime browser runner.
-- Gradio Blocks with independent Python services and SQLite initially.
-- Kane separated from application runtime.
-- Documentation teaches through problems, requirements and modules.
+- The real-time voice experience is the product home.
+- Talk, Review, and Board share one responsive browser shell and port.
+- LiveKit provides WebRTC transport; Groq Whisper and OSS 20B provide intelligence.
+- Draft creation is explicit and every draft requires approval.
+- Python services and SQLite remain independent of the frontend.
+- No computer-use agent, external task mutation, calendar write, or reminder claim.
 
-## Proposed defaults to review
+## Product decisions still open
 
-- [ ] Start with one focused clarification per round and allow skipping; cap rounds at two for MVP.
-- [ ] Show ordered steps, with no nested subtasks or automatic schedule optimisation.
-- [ ] Default timezone Asia/Kolkata, editable; never infer a missing deadline.
-- [ ] Confirm the desktop split view and mobile Bot/Board navigation in wireframes.
-- [ ] Choose audio retention duration; review delete-source/retain-task policy.
-- [ ] Choose local single-user setup or restricted hosted demo.
-- [ ] Confirm actual combined availability and responsibilities with the colleague.
-- [ ] Confirm Groq access and model availability; local models remain an optional adapter.
-- [ ] Select repository host, visibility, collaborator access and license.
+- [ ] Choose how long source audio/transcripts should be retained.
+- [ ] Decide whether browser speech quality is sufficient for the intended demo devices.
+- [ ] Decide whether interim word-level captions justify a streaming STT provider later.
+- [ ] Confirm the default timezone and how users will change it.
+- [ ] Decide when completed/cancelled work should be archived or hidden.
+- [ ] Confirm repository visibility, collaborator access, and license.
 
-## Technical checks before promising a demo
+## Verification before a public demo
 
-- Kane can reach the development app and return evidence to the coding agent.
-- Browser recording works on the target laptop and phone.
-- Provider responses validate for clarification and substeps.
-- Request timeout/retry behaviour preserves input and avoids stale writes.
-- Persistence survives restart and deployment storage is not ephemeral.
+- [ ] Test microphone permission, interruption, and browser speech on the target laptop.
+- [ ] Test one mobile browser at narrow width.
+- [ ] Verify “make a draft” reliably creates one proposal and updates the Review badge.
+- [ ] Verify ending with a draft opens Review; ending without one gives useful guidance.
+- [ ] Verify edited approval reaches Board and repeat approval cannot duplicate it.
+- [ ] Restart both processes and confirm drafts, tasks, and step progress persist.
+- [ ] Use synthetic data and confirm no secret appears in built browser assets or logs.
 
-Keep further comments here or inline with `>>`. Existing decisions need not be reopened unless a concrete constraint changes.
-
-- [ ] Validate microphone, editable steps, session restoration and Kane interaction in the first Gradio slice.
+Existing decisions should only be reopened when testing reveals a concrete constraint.

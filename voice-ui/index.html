@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#17251f" />
+    <meta name="description" content="Talk through a loose end, review the plan, and keep track of what matters." />
+    <title>Loose Ends</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <button class="brand" type="button" data-view-target="talk" aria-label="Go to the conversation">
+          <span class="brand-mark" aria-hidden="true">◒</span>
+          <span>Loose Ends</span>
+        </button>
+        <nav class="primary-nav" aria-label="Main navigation">
+          <button class="nav-item" type="button" data-view-target="talk">Talk</button>
+          <button class="nav-item" type="button" data-view-target="review">
+            Review <span id="review-count" class="nav-count" hidden>0</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="board">Board</button>
+        </nav>
+        <span id="connection-pill" class="connection-pill" data-status="offline">Not connected</span>
+      </header>
+
+      <section id="talk-view" class="app-view" data-view="talk" aria-labelledby="voice-heading">
+        <div class="voice-layout">
+          <div class="voice-stage">
+            <p class="eyebrow">Your thinking space</p>
+            <h1 id="voice-heading">Talk it through.<br /><em>Keep what matters.</em></h1>
+            <p class="intro">Speak naturally. Loose Ends listens for the end of your thought, helps you refine it, and keeps drafts editable until you approve them.</p>
+
+            <div class="orb-wrap" aria-live="polite">
+              <div class="orb-halo halo-one"></div>
+              <div class="orb-halo halo-two"></div>
+              <button id="connect-button" class="voice-orb" type="button" aria-label="Start a voice conversation">
+                <span id="orb-icon" class="orb-icon" aria-hidden="true">⌁</span>
+                <span id="orb-label">Start talking</span>
+              </button>
+            </div>
+            <p id="conversation-status" class="conversation-status">One tap to begin · You can interrupt at any time</p>
+
+            <div class="wave" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+
+          <aside class="conversation-panel" aria-label="Live conversation">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Live notes</p>
+                <h2>Conversation</h2>
+              </div>
+              <button id="clear-notes" class="quiet-button" type="button">Clear</button>
+            </div>
+            <div id="transcript" class="transcript" role="log" aria-live="polite">
+              <div class="empty-state">
+                <span class="empty-icon" aria-hidden="true">◎</span>
+                <p>Your conversation will appear here.</p>
+                <small>Nothing reaches your board until you review and approve it.</small>
+              </div>
+            </div>
+            <form id="text-form" class="text-input">
+              <label class="sr-only" for="text-message">Type a message</label>
+              <input id="text-message" autocomplete="off" placeholder="Start the conversation to type…" disabled />
+              <button id="send-button" type="submit" aria-label="Send typed message" disabled>↑</button>
+            </form>
+          </aside>
+        </div>
+
+        <section class="journey" aria-labelledby="journey-title">
+          <div class="journey-heading">
+            <p class="eyebrow">How to finish</p>
+            <h2 id="journey-title">From thought to something you can act on</h2>
+          </div>
+          <ol class="journey-steps">
+            <li><span>01</span><div><strong>Talk naturally</strong><p>Refine the thought together. Interrupt or correct anything.</p></div></li>
+            <li><span>02</span><div><strong>Ask for a draft</strong><p>Say “make a draft” when the plan feels right.</p></div></li>
+            <li><span>03</span><div><strong>Review, then approve</strong><p>Edit the details before anything reaches your board.</p></div></li>
+          </ol>
+          <div id="draft-handoff" class="draft-handoff" hidden>
+            <div><span class="handoff-dot" aria-hidden="true"></span><strong id="draft-handoff-title">A draft is ready</strong><p id="draft-handoff-copy">Check the details before saving it.</p></div>
+            <button class="primary-button" type="button" data-view-target="review">Review draft <span aria-hidden="true">→</span></button>
+          </div>
+        </section>
+      </section>
+
+      <section id="review-view" class="app-view workspace-view" data-view="review" hidden aria-labelledby="review-heading">
+        <header class="workspace-heading">
+          <div>
+            <p class="eyebrow">Your decision</p>
+            <h1 id="review-heading">Review before<br /><em>you commit.</em></h1>
+          </div>
+          <p>These are drafts from your conversations. Edit freely, approve what is useful, and dismiss the rest.</p>
+        </header>
+
+        <div id="review-empty" class="workspace-empty" hidden>
+          <span aria-hidden="true">◎</span>
+          <h2>No drafts waiting</h2>
+          <p>Start a conversation, refine your idea, then say “make a draft.”</p>
+          <button class="primary-button" type="button" data-view-target="talk">Start talking <span aria-hidden="true">→</span></button>
+        </div>
+
+        <div id="review-workspace" class="review-workspace" hidden>
+          <aside class="draft-list-panel" aria-label="Drafts waiting for review">
+            <div class="section-label"><span>Waiting for you</span><span id="draft-list-count">0 drafts</span></div>
+            <div id="draft-list" class="draft-list"></div>
+          </aside>
+
+          <form id="review-form" class="review-editor">
+            <div class="editor-topline">
+              <span id="proposal-kind" class="kind-pill">Task</span>
+              <span id="proposal-timing" class="muted-meta"></span>
+            </div>
+            <label class="field-label" for="proposal-title">Title</label>
+            <input id="proposal-title" class="editor-title" maxlength="140" required />
+
+            <label class="field-label" for="proposal-description">What does done look like?</label>
+            <textarea id="proposal-description" rows="3" maxlength="500"></textarea>
+
+            <div class="field-grid">
+              <label><span class="field-label">Due date</span><input id="proposal-due-date" type="date" /></label>
+              <label><span class="field-label">Suggested work time</span><input id="proposal-work-time" type="datetime-local" /></label>
+            </div>
+
+            <label class="field-label" for="proposal-steps">Steps <span class="field-hint">one per line</span></label>
+            <textarea id="proposal-steps" rows="5" placeholder="Add a simple first step"></textarea>
+
+            <div class="source-card">
+              <span class="field-label">Why this draft exists</span>
+              <blockquote id="proposal-source"></blockquote>
+              <p id="proposal-missing" class="source-note"></p>
+            </div>
+
+            <div class="editor-actions">
+              <button id="dismiss-proposal" class="secondary-button danger-button" type="button">Dismiss</button>
+              <button id="approve-proposal" class="primary-button" type="submit">Approve &amp; add to board <span aria-hidden="true">→</span></button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="board-view" class="app-view workspace-view" data-view="board" hidden aria-labelledby="board-heading">
+        <header class="workspace-heading board-heading">
+          <div>
+            <p class="eyebrow">Your saved plan</p>
+            <h1 id="board-heading">A calm place<br /><em>to follow through.</em></h1>
+          </div>
+          <div class="board-heading-actions">
+            <p>Only work you explicitly approved appears here. Check off steps as you go.</p>
+            <button class="secondary-button" type="button" data-view-target="talk">Talk through another <span aria-hidden="true">＋</span></button>
+          </div>
+        </header>
+        <div id="board-empty" class="workspace-empty" hidden>
+          <span aria-hidden="true">□</span>
+          <h2>Your board is clear</h2>
+          <p>Approved tasks and ideas will collect here.</p>
+          <button class="primary-button" type="button" data-view-target="talk">Start a conversation <span aria-hidden="true">→</span></button>
+        </div>
+        <div id="board-content" class="board-columns"></div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <div id="audio-output" aria-hidden="true"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

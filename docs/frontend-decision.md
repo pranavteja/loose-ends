@@ -1,42 +1,61 @@
-# Frontend decision: Gradio Blocks
+# Frontend decision: voice-first product shell
 
-Decision date: 14 November 2026. Selected for the first implementation after comparing the actual product needs. This is a documentation-based choice, not a completed runtime benchmark.
+Decision date: 17 November 2026. This supersedes the 14 November Gradio decision after testing the real-time prototype. The voice interface is now the product interface, not a page embedded inside a separate review application.
 
-## Priorities
+## Decision
 
-Deliver voice/text capture, optional clarification, editable steps, explicit approval, durable task state and grounded chat within the event window. Keep Python logic understandable and reusable for a longer-term project. Precise styling and advanced board interactions are secondary for Phase A.
+Use one responsive browser application with three persistent views:
 
-| Candidate | What works well here | Cost or limitation | Decision |
-|---|---|---|---|
-| Gradio Blocks | Microphone audio, chat components, explicit event handlers, custom compositions in Python | Dynamic business-app layouts need discipline; session state is not persistence; queue is not durable | Select for Phase A |
-| Streamlit | Built-in recording/chat, fast Python UI, forms and fragments | Default reruns require careful control of side effects and draft state | Viable; fewer advantages for this event-oriented workflow |
-| NiceGUI | Flexible app layouts, event handlers, FastAPI integration | Recording requires a browser integration/custom component check; more work before the main voice flow | Strong later candidate if layout needs outgrow Blocks |
-| FastAPI + templates | Full control of routes and browser behaviour | Manual recording, UI updates and form wiring increase initial work | Retain as a future option, not the initial stack |
+1. **Talk** — a LiveKit conversation with live notes and typed fallback.
+2. **Review** — editable drafts created during the conversation.
+3. **Board** — approved tasks, ideas, steps, and completion state.
 
-These fit judgments are engineering assessments, not measured performance rankings. Gradio is not limited to model demos; Blocks supports composed applications. Streamlit can handle this workflow correctly using forms/fragments; reruns are a trade-off, not a disqualification. NiceGUI's audio playback component should not be mistaken for a built-in microphone recorder.
+The Vite-built frontend is served by the local FastAPI process at `http://127.0.0.1:7861`. FastAPI also supplies short-lived LiveKit tokens and small JSON endpoints for drafts and board state. Plain Python services and SQLite remain the source of truth.
 
-## Why this choice
+## Why the plan changed
 
-Gradio removes work from the core voice/chat path while explicit button and change events fit review and approval. Use one application with plain Python services and SQLite. Do not add a separate FastAPI server solely because earlier docs proposed REST endpoints. Codex can implement all candidates; the choice is driven by development scope and maintenance, not an assumed coding-agent preference.
+The working voice prototype established the interaction quality the product needs: one tap, automatic turn-taking, interruption, visible dialogue, and a calm visual identity. Embedding that experience in Gradio created two products on one screen, duplicated navigation, and made “what happens after the conversation?” unclear.
 
-## Constraints we accept
+The revised shell keeps the part that worked and removes the seams:
 
-Use conventional controls and simple lists/editors rather than pixel-perfect custom cards. Separate temporary UI state from durable records. Explicitly configure queue/concurrency behaviour, bound provider calls, and validate state revisions. Keep framework objects out of planning and persistence modules. Public deployment needs access control and protected mutation paths. Browser audio still requires permissions and a suitable secure context.
+- no iframe and no second local URL;
+- one design system and one navigation model;
+- a visible Talk → Draft → Review → Board journey;
+- a Review badge and “draft ready” call to action;
+- ending a conversation opens Review when a draft exists;
+- empty states explain the exact next action;
+- secrets, persistence, and approval rules remain server-side.
+
+## Experience principles
+
+| Principle | UI consequence |
+|---|---|
+| Conversation first | Talk is the default view and the voice orb remains the main action. |
+| Make the next step obvious | The page explains “say make a draft”; ending routes to Review when possible. |
+| Suggestions are not commitments | Drafts are editable and never reach the Board without approval. |
+| Keep context visible | Review shows the source excerpt and unresolved detail beside the proposed plan. |
+| Preserve user control | Dismiss, reopen, cancel, and step-completion actions are explicit. |
+| One local product | Talk, Review, Board, tokens, and persistence share port 7861. |
+
+## Technical boundaries
+
+- `voice-ui/` owns browser rendering, navigation, WebRTC interaction, and browser speech synthesis.
+- `voice_server.py` serves the compiled assets, token endpoint, and local JSON API.
+- `loose_ends/services.py` owns validation, idempotent approval, and state changes.
+- SQLite is durable state; JavaScript state is presentation state only.
+- The LiveKit API secret and Groq key never enter frontend code.
+- The app remains loopback-only and single-user. Authentication is required before any public deployment.
+
+## Accepted trade-offs
+
+The dedicated frontend needs explicit HTML, CSS, and API wiring, but the implemented voice experience already required those capabilities. LiveKit adds a separate worker process, and Groq Whisper publishes a turn after the user pauses rather than word-by-word interim transcription. Browser speech quality depends on the installed browser/OS voices. These are preferable to splitting the main journey across two unrelated interfaces.
 
 ## Revisit when
 
-If essential recording/editing/Kane interactions cannot be made reliable in the first slice, revisit the choice with measured evidence. If later UX requires a persistent highly customised mobile shell or complex board interactions, evaluate NiceGUI or a dedicated frontend while retaining services and storage. Do not schedule a rewrite merely because a framework is associated with demos.
+- a public or multi-user deployment requires authentication and per-user room/data isolation;
+- long-running planning jobs need durable workers and status polling;
+- a true streaming STT provider is needed for interim word captions;
+- mobile packaging requires native audio/session integration;
+- browser speech quality is insufficient and a dedicated TTS provider is justified.
 
-## Official sources checked
-
-- [Gradio Blocks](https://gradio.app/docs/gradio/blocks): composition and events.
-- [Gradio Audio](https://gradio.app/docs/audio): microphone input and audio handling.
-- [Gradio State](https://gradio.app/docs/gradio/state): session lifetime and events.
-- [Streamlit execution flow](https://docs.streamlit.io/develop/api-reference/execution-flow): reruns, forms, fragments.
-- [Streamlit session state](https://docs.streamlit.io/develop/api-reference/caching-and-state/st.session_state): session-bound state.
-- [Streamlit audio input](https://docs.streamlit.io/develop/api-reference/widgets/st.audio_input): recording widget.
-- [NiceGUI foundations](https://nicegui.io/documentation/section_foundations): FastAPI integration.
-- [NiceGUI audio](https://nicegui.io/documentation/audio): playback component.
-- [NiceGUI events](https://nicegui.io/documentation/section_action_events): event handling.
-
-No package version is pinned by this document. Pin after the actual compatibility spike and record the results.
+The old Gradio module and dependency have been removed; they are not part of the current runtime or UI plan.

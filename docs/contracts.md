@@ -1,52 +1,60 @@
-# Backend contracts — proposed, not implemented
+# Backend contracts
 
-The browser and Python backend agree on these messages. A contract describes inputs, outputs and failure behaviour so UI and backend work can progress independently.
+The unified browser shell calls a small loopback-only JSON API. Python services remain the business boundary: HTTP handlers translate requests and errors but do not duplicate validation or persistence rules.
 
-## Python service contracts first
+## Implemented browser API
 
-Gradio event handlers call these functions. Keep Gradio component objects out of the service layer so it can be tested independently and exposed through HTTP later.
+| Method and path | Purpose | Main result |
+|---|---|---|
+| `GET /api/health` | Check Groq/LiveKit configuration | readiness, missing values, agent name |
+| `POST /api/token` | Create an opaque LiveKit room identity and dispatch the agent | server URL and short-lived participant token |
+| `GET /api/review` | Load active draft proposals | proposal list with suggested steps and source context |
+| `POST /api/review/{id}/approve` | Validate edits and atomically create a board record | saved task with steps |
+| `POST /api/review/{id}/dismiss` | Dismiss an active proposal | confirmation |
+| `GET /api/board` | Load approved tasks, ideas, and step state | task list |
+| `PATCH /api/tasks/{id}/status` | Set `open`, `completed`, or `cancelled` | updated task |
+| `PATCH /api/steps/{id}` | Set step completion explicitly | updated parent task |
+
+The server maps invalid input to 400, missing records to 404, and stale/conflicting state to 409. Provider and LiveKit credentials never appear in these responses.
+
+## Python service boundary
 
 | Service operation | Behaviour |
 |---|---|
-| create_capture(owner, input, captured_at, timezone, request_key) | Persist text/audio and return capture ID/revision |
-| process_capture(owner, capture_id, revision) | Bounded inference; persist attempt and draft or failure |
-| get_capture(owner, capture_id) | Return current transcript, question, draft and status |
-| edit_transcript(owner, capture_id, revision, text) | Save new revision and supersede pending draft |
-| answer_clarification(owner, capture_id, revision, answer_or_skip) | Persist answer and refine draft |
-| approve_proposal(owner, proposal_id, revision, edits, request_key) | Save task and steps in one transaction |
-| dismiss_proposal(owner, proposal_id, revision) | Dismiss current proposal |
-| list_tasks(owner, filters) | Read durable board contents |
-| update_task / update_step(owner, id, revision, changes) | Explicit edits or completion |
-| answer_about_tasks(owner, message) | Grounded answer without task mutation |
-| delete_capture(owner, capture_id, retention_choice) | Remove source under documented retention policy |
+| `create_text_capture` / `create_audio_capture` | Persist original input before planning. |
+| `process_capture` | Run bounded inference and persist a draft or retryable failure. |
+| `answer_clarification` | Save an answer or skip and refine within the question budget. |
+| `list_review_proposals` | Return active review drafts only. |
+| `approve_proposal` | Validate edits and save task, steps, receipt, and proposal state transactionally. |
+| `dismiss_proposal` | Remove a draft from active review without creating a task. |
+| `list_tasks` | Return durable board contents with ordered steps. |
+| `set_task_status` / `set_step_completed` | Apply explicit progress changes. |
+| `answer_about_tasks` | Ground an answer in saved work without mutation. |
 
-UI handlers translate structured success/errors into visible controls. Error categories: conflict, invalid_input, not_found, provider_unavailable and processing_failed. If a REST API is introduced later, map these to HTTP statuses then; the MVP does not need a parallel collection of handwritten routes.
-
-Capture creation and approval use request keys. Identical retries return the saved result; a reused key with a different payload conflicts. Processing uses attempt IDs and revisions to reject stale results. After an uncertain response, read persisted status before retrying. Gradio's queue schedules events but does not guarantee recovery after a server crash. Persist input first, mark abandoned attempts retryable on restart, and enforce audio limits in backend code.
+Approval is idempotent by proposal: repeated approval returns the existing task. A reused request key with a different payload conflicts. Processing uses attempt IDs and revisions so stale model results cannot overwrite a newer capture.
 
 ## Minimal records
 
 | Record | Main fields |
 |---|---|
-| Capture | id, owner_id, type, captured_at, timezone, audio_path, transcript, revision, state, attempt_id, attempt_started_at, error_code |
-| Clarification | id, capture_id, revision, question, answer, skipped, created_at |
-| Proposal | id, capture_id, revision, type, title, description, source_excerpt, timing_phrase, due_date, due_at, work_start_at, timezone, needs_clarification, state, proposed_steps |
-| Task | id, owner_id, proposal_id, type, title, description, due_date, due_at, work_start_at, timezone, status, revision |
+| Capture | id, owner_id, input_type, transcript/audio, captured_at, timezone, revision, state, attempt_id |
+| Clarification | id, capture_id, revision, question, answer, skipped |
+| Proposal | id, capture_id, revision, kind, title, description, source_excerpt, timing, proposed_steps, state |
+| Task | id, owner_id, proposal_id, kind, title, description, dates, status, revision |
 | Step | id, task_id, position, title, completed, revision |
 | RequestReceipt | owner_id, operation, request_key, payload_hash, result_id |
 
-Store proposed steps as validated JSON initially; approved steps become separate rows. Enforce one Task per proposal_id. Choose either due_date or due_at, not contradictory values. Ideas can be stored in Task with type=idea, excluded from active-task lists. Source metadata is separate from user-edited task text.
-
-A transaction writes the task, steps, and approval state together. This avoids a task saved without its steps if the process fails. Revision comparisons avoid overwriting a newer edit. Use owner_id checks even in a single-user deployment so later authentication does not depend on retrofitting every query.
+Ideas share the Task table with `kind=idea` and have no steps. Unknown dates are valid null values. Source context is stored separately from user-edited task wording.
 
 ## Model boundaries
 
-- `transcribe(audio) -> transcript`
-- `propose_plan(transcript, replies, captured_at, timezone, question_budget) -> question_or_proposals`
-- `answer_about_tasks(message, task_context) -> answer + referenced_task_ids`
+- Voice agent: spoken turn → Groq Whisper transcript → OSS 20B conversational response.
+- Draft tool: explicit user request → validated proposal persisted by application services.
+- Structured planner: capture + replies + time context → question or proposals.
+- Task-aware answer: message + bounded saved-task context → grounded response.
 
-One provider can implement all roles. IDs, database writes and permissions belong to backend code. Models suggest content, not SQL, shell commands or arbitrary tool calls. Null dates and empty action lists are valid.
+Models suggest content. IDs, authorization, validation, database writes, and task status belong to deterministic backend code.
 
 ## Later contracts
 
-Phase B adds proposed-change records with original task revision and approved before/after values. Calendar integration adds an OAuth connection and sync records. Reminder scheduling adds notification delivery state. These records are deliberately absent from the Phase A schema.
+Public deployment needs authentication and real owner isolation. Phase B may add proposed-change records for edits to existing tasks. Calendar connections need OAuth and sync records. Reminder delivery needs scheduling and notification state. None of those actions should be implied by the current API.
