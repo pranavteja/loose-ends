@@ -24,6 +24,7 @@ from livekit.agents import (
     JobProcess,
     RunContext,
     function_tool,
+    inference,
     room_io,
 )
 from livekit.plugins import groq, silero
@@ -136,8 +137,9 @@ would make the plan materially clearer. Reflect corrections back accurately;
 never invent dates, commitments, progress, or reminders. Treat things called
 an idea, a maybe, or explicitly not a task as ideas.
 
-Keep each spoken sentence under 180 characters so voice playback begins
-quickly and remains within the speech model's per-request limit.
+Keep every response conversational and compact: at most two short sentences
+and 240 characters total. Do not read a full plan, checklist, or timeline
+aloud. Summarise it, then ask one useful question when needed.
 
 This is an audio-only experience. Never ask the user to type, read a transcript,
 or use chat. The user hears your response and can interrupt you at any time.
@@ -325,6 +327,20 @@ def prewarm(proc: JobProcess) -> None:
 server = AgentServer(setup_fnc=prewarm)
 
 
+def _create_voice_tts(voice: VoiceSettings) -> Any:
+    """Use streaming LiveKit speech by default, while retaining Groq opt-in."""
+    if voice.tts_model.startswith("canopylabs/"):
+        logger.warning(
+            "Using Groq Orpheus TTS; its low request limit can interrupt longer conversations"
+        )
+        return groq.TTS(model=voice.tts_model, voice=voice.tts_voice)
+    return inference.TTS(
+        model=voice.tts_model,
+        voice=voice.tts_voice,
+        language=voice.stt_language,
+    )
+
+
 @server.rtc_session(agent_name=VoiceSettings.from_env().agent_name)
 async def voice_entrypoint(ctx: JobContext) -> None:
     voice = VoiceSettings.from_env()
@@ -339,13 +355,30 @@ async def voice_entrypoint(ctx: JobContext) -> None:
     service = _planner_service()
     session = AgentSession(
         # Groq Whisper is final-segment transcription. VAD supplies natural
-        # hands-free turn detection, and Groq Orpheus publishes assistant audio
-        # directly into the LiveKit room for reliable playback and interruption.
+        # hands-free turn detection. LiveKit Inference streams assistant audio
+        # directly into the room without Groq Orpheus's per-request bottleneck.
         stt=groq.STT(model=voice.stt_model, language=voice.stt_language),
         llm=groq.LLM(model=voice.llm_model),
-        tts=groq.TTS(model=voice.tts_model, voice=voice.tts_voice),
+        tts=_create_voice_tts(voice),
         vad=ctx.proc.userdata["vad"],
-        preemptive_generation=True,
+        turn_handling={
+            "turn_detection": "vad",
+            "endpointing": {
+                "mode": "dynamic",
+                "min_delay": 1.0,
+                "max_delay": 2.8,
+            },
+            "interruption": {
+                "enabled": True,
+                "mode": "vad",
+                "min_duration": 0.55,
+                "min_words": 1,
+            },
+            "preemptive_generation": {
+                "enabled": True,
+                "preemptive_tts": False,
+            },
+        },
     )
 
     companion = PlanningCompanion(service)
@@ -394,6 +427,37 @@ async def voice_entrypoint(ctx: JobContext) -> None:
             source=event.source,
             user_initiated=event.user_initiated,
         )
+
+    @session.on("error")
+    def report_session_error(event: Any) -> None:
+        source = {
+            "provider": getattr(event.source, "provider", None),
+            "model": getattr(event.source, "model", None),
+        }
+        recorder.append(
+            "session_error",
+            source=source,
+            error=repr(event.error),
+        )
+
+        async def publish_voice_error() -> None:
+            try:
+                await ctx.room.local_participant.publish_data(
+                    json.dumps(
+                        {
+                            "type": "agent_error",
+                            "message": (
+                                "The voice response could not be played. Pause briefly, then try speaking again."
+                            ),
+                        }
+                    ),
+                    reliable=True,
+                    topic="loose-ends.status",
+                )
+            except Exception:
+                logger.exception("Could not publish the voice error to the browser")
+
+        asyncio.create_task(publish_voice_error())
 
     await session.start(
         agent=companion,

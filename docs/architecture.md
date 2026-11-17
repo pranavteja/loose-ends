@@ -8,7 +8,8 @@ This document describes the implemented direction as of 17 November 2026. The br
 flowchart LR
     B["Browser: Talk / Review / Board"] <-->|"WebRTC microphone + agent audio"| LK["LiveKit Cloud"]
     A["Python voice agent"] <-->|"Room audio + internal model text"| LK
-    A <-->|"Whisper + OSS 20B + Orpheus TTS"| G["Groq API"]
+    A <-->|"Whisper + OSS 20B"| G["Groq API"]
+    A <-->|"streaming Cartesia TTS"| I["LiveKit Inference"]
     B <-->|"Token + draft/task JSON"| W["Local FastAPI :7861"]
     W <-->|"Validated service calls"| S["Python application services"]
     A -->|"Create review draft only when asked"| S
@@ -20,7 +21,7 @@ Two local processes are required:
 - `python app.py` serves the UI and local API on port 7861.
 - `python -m loose_ends.voice_agent start` joins dispatched LiveKit rooms and runs the conversation.
 
-LiveKit transports real-time media and a hidden response stream; it is not the speech or reasoning model. Groq provides Whisper speech-to-text, OSS 20B reasoning, and Orpheus text-to-speech. The agent publishes generated speech into the room as WebRTC audio. Talk never renders the model text as chat.
+LiveKit transports real-time media and provides streaming Cartesia speech through LiveKit Inference. Groq provides Whisper speech-to-text and OSS 20B reasoning. The agent publishes generated speech into the room as WebRTC audio. Talk never renders the model text as chat.
 
 ## Product journey
 
@@ -90,7 +91,7 @@ The local token endpoint signs short-lived, opaque LiveKit identities. Provider 
 | Groq turn fails | Agent explains the failure; the room can continue or be restarted. |
 | Draft refresh fails | Existing conversation remains; a toast reports the local API error. |
 | Approval conflicts | No duplicate is created; Review reports the conflict and reloads. |
-| Groq TTS fails | The agent reports a provider error in logs; the room can be restarted. Review and Board remain usable. |
+| Streaming TTS fails | The agent reports the provider error in the local transcript and sends an actionable status to Talk. Review and Board remain usable. |
 
 ## Growth triggers
 
@@ -99,7 +100,7 @@ The local token endpoint signs short-lived, opaque LiveKit identities. Provider 
 | Several users or public access | Authentication, per-user records and rooms, PostgreSQL. |
 | Work must continue after process exit | Durable job queue and processing-status API. |
 | Faster turn recognition is essential | True streaming STT provider behind the same voice-only interface. |
-| Lower speech latency is required | Move from sentence-level Orpheus TTS to a streaming TTS provider behind the same LiveKit audio output. |
+| Speech usage exceeds the development allowance | Add a LiveKit billing plan or configure another streaming TTS provider behind the same audio output. |
 | External calendar/task actions are added | OAuth, explicit proposed-change review, and integration audit log. |
 
 The retired Gradio UI and dependency have been removed and are not part of this diagram.

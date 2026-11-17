@@ -29,12 +29,12 @@ flowchart LR
 |---|---|---|
 | Product UI | Vite + plain JavaScript/CSS | Talk/Review/Board shell, LiveKit client, voice session state, room audio playback |
 | Real-time transport | LiveKit | WebRTC room, bidirectional audio, agent dispatch, hidden response stream |
-| Voice intelligence | Python LiveKit agent + Groq | Whisper speech-to-text, OSS 20B conversation/planning, Orpheus speech |
+| Voice intelligence | Python LiveKit agent + Groq + LiveKit Inference | Whisper speech-to-text, OSS 20B conversation/planning, streaming Cartesia speech |
 | Local web/API | FastAPI | Static UI, private token creation, draft and board endpoints |
 | Business rules | Plain Python services | Validation, bounded planning, approval, task/step state |
 | Storage | SQLite | Durable proposals, approved work, and progress |
 
-LiveKit is the real-time transport rather than the speech model. Groq Whisper privately transcribes a completed turn, OSS 20B reasons, and Groq Orpheus turns the reply into audio that the agent publishes into the LiveKit room. Conversation text is never rendered in Talk. The browser only plays WebRTC audio, so the experience does not depend on an installed system voice.
+LiveKit transports real-time audio and provides streaming Cartesia speech through LiveKit Inference. Groq Whisper privately transcribes a completed turn and OSS 20B handles conversation and planning. Conversation text is never rendered in Talk. The browser only plays WebRTC audio, so the experience does not depend on an installed system voice.
 
 ## Local setup
 
@@ -61,7 +61,7 @@ LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
 ```
 
-The defaults use `whisper-large-v3-turbo`, `openai/gpt-oss-20b`, and `canopylabs/orpheus-v1-english` with the `autumn` voice. Secrets remain in local Python processes and are never compiled into the browser assets.
+The defaults use `whisper-large-v3-turbo`, `openai/gpt-oss-20b`, and LiveKit Inference's streaming `cartesia/sonic-3` voice. Secrets remain in local Python processes and are never compiled into the browser assets.
 
 ### 3. Build the browser interface once
 
@@ -109,7 +109,7 @@ If you end without a draft, the app stays on Talk and explains what to do. Revie
 - Repeated approval does not create a duplicate task.
 - Unknown dates remain blank and unresolved details stay visible.
 - The app does not schedule reminders, send messages, operate a calendar, or change external services.
-- Groq Orpheus currently limits each TTS request to 200 characters, so the agent keeps spoken sentences concise.
+- Spoken responses are intentionally concise, while streaming TTS allows a full response without splitting every sentence into a separate Groq request.
 - Talk has no typed fallback or visible transcript; microphone access and WebRTC audio playback are required.
 - The default server binds to loopback; do not expose it publicly without authentication and a security review.
 

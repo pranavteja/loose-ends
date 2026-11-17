@@ -12,7 +12,7 @@
 ## Product decisions still open
 
 - [ ] Choose how long source audio/transcripts should be retained.
-- [ ] Decide whether the selected Groq Orpheus voice is right for the intended demo.
+- [ ] Decide whether the selected streaming Cartesia voice is right for the intended demo.
 - [ ] Decide whether lower-latency streaming STT is needed even though Talk does not display captions.
 - [ ] Confirm the default timezone and how users will change it.
 - [ ] Decide when completed/cancelled work should be archived or hidden.

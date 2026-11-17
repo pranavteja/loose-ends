@@ -49,7 +49,7 @@ The revised shell keeps the part that worked and removes the seams:
 
 ## Accepted trade-offs
 
-The dedicated frontend needs explicit HTML, CSS, and API wiring, but the implemented voice experience already required those capabilities. LiveKit adds a separate worker process, and Groq Whisper publishes a turn after the user pauses rather than word-by-word interim transcription. Groq Orpheus is sentence-level rather than streaming and limits each request to 200 characters, so responses stay concise. Talk cannot fall back to typing when microphone or audio support is unavailable. Review and Board remain usable.
+The dedicated frontend needs explicit HTML, CSS, and API wiring, but the implemented voice experience already required those capabilities. LiveKit adds a separate worker process, and Groq Whisper publishes a turn after the user pauses rather than word-by-word interim transcription. LiveKit Inference streams Cartesia speech back into the room, while responses stay concise for natural turn-taking. Talk cannot fall back to typing when microphone or audio support is unavailable. Review and Board remain usable.
 
 ## Revisit when
 
@@ -57,6 +57,6 @@ The dedicated frontend needs explicit HTML, CSS, and API wiring, but the impleme
 - long-running planning jobs need durable workers and status polling;
 - lower-latency streaming STT is needed for faster turn recognition;
 - mobile packaging requires native audio/session integration;
-- lower-latency streaming speech becomes important enough to replace sentence-level Groq TTS.
+- speech usage grows beyond the LiveKit development allowance and needs a dedicated provider plan.
 
 The old Gradio module and dependency have been removed; they are not part of the current runtime or UI plan.

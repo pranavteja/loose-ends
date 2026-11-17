@@ -200,6 +200,19 @@ function wireRoom(nextRoom) {
   nextRoom.on(RoomEvent.ParticipantAttributesChanged, (_changed, participant) => agentStateChanged(participant));
   nextRoom.on(RoomEvent.ParticipantConnected, agentConnected);
   nextRoom.on(RoomEvent.ParticipantDisconnected, agentDisconnected);
+  nextRoom.on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
+    if (topic !== 'loose-ends.status') return;
+    try {
+      const event = JSON.parse(new TextDecoder().decode(payload));
+      if (event.type === 'agent_error') {
+        const message = event.message || 'The voice response failed. Pause briefly, then try again.';
+        setStatus('error', message);
+        showToast(message, 'error');
+      }
+    } catch (error) {
+      console.error('Could not read agent status event', error);
+    }
+  });
   nextRoom.on(RoomEvent.Disconnected, () => {
     attachedAudio.forEach((element) => element.remove());
     attachedAudio = new Map();

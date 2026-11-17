@@ -37,8 +37,10 @@ class VoiceSettings:
             stt_model=os.getenv("VOICE_STT_MODEL", "whisper-large-v3-turbo"),
             stt_language=os.getenv("VOICE_STT_LANGUAGE", "en"),
             llm_model=os.getenv("VOICE_LLM_MODEL", "openai/gpt-oss-20b"),
-            tts_model=os.getenv("VOICE_TTS_MODEL", "canopylabs/orpheus-v1-english"),
-            tts_voice=os.getenv("VOICE_TTS_VOICE", "autumn"),
+            tts_model=os.getenv("VOICE_TTS_MODEL", "cartesia/sonic-3"),
+            tts_voice=os.getenv(
+                "VOICE_TTS_VOICE", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
+            ),
         )
 
     def missing_livekit_values(self) -> list[str]:
