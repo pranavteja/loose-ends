@@ -29,7 +29,7 @@
           <div class="voice-stage">
             <p class="eyebrow">Your thinking space</p>
             <h1 id="voice-heading">Talk it through.<br /><em>Keep what matters.</em></h1>
-            <p class="intro">Speak naturally. Loose Ends listens for the end of your thought, helps you refine it, and keeps drafts editable until you approve them.</p>
+            <p class="intro">A real voice conversation—no typing and no chat transcript. Think aloud, interrupt naturally, and refine the plan until it sounds right.</p>
 
             <div class="orb-wrap" aria-live="polite">
               <div class="orb-halo halo-one"></div>
@@ -46,26 +46,38 @@
             </div>
           </div>
 
-          <aside class="conversation-panel" aria-label="Live conversation">
-            <div class="panel-header">
+          <aside class="voice-session-panel" aria-label="Voice session status">
+            <div class="session-heading">
               <div>
-                <p class="panel-kicker">Live notes</p>
-                <h2>Conversation</h2>
+                <p class="panel-kicker">Voice to voice</p>
+                <h2>Speak freely</h2>
               </div>
-              <button id="clear-notes" class="quiet-button" type="button">Clear</button>
+              <span class="private-pill"><span aria-hidden="true">●</span> Private room</span>
             </div>
-            <div id="transcript" class="transcript" role="log" aria-live="polite">
-              <div class="empty-state">
-                <span class="empty-icon" aria-hidden="true">◎</span>
-                <p>Your conversation will appear here.</p>
-                <small>Nothing reaches your board until you review and approve it.</small>
+
+            <div id="voice-presence" class="voice-presence" data-status="offline" aria-live="polite">
+              <div class="presence-visual" aria-hidden="true">
+                <span class="presence-ring ring-outer"></span>
+                <span class="presence-ring ring-inner"></span>
+                <span class="presence-core">⌁</span>
+                <div class="presence-bars">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
               </div>
+              <strong id="session-state-title">Ready when you are</strong>
+              <p id="session-state-copy">Start the room, then talk exactly as you would to a thoughtful planning partner.</p>
             </div>
-            <form id="text-form" class="text-input">
-              <label class="sr-only" for="text-message">Type a message</label>
-              <input id="text-message" autocomplete="off" placeholder="Start the conversation to type…" disabled />
-              <button id="send-button" type="submit" aria-label="Send typed message" disabled>↑</button>
-            </form>
+
+            <div class="voice-prompts">
+              <p class="field-label">Try saying</p>
+              <ul>
+                <li><span>Think</span> “Help me work through everything I need to do.”</li>
+                <li><span>Refine</span> “Actually, move that to Friday and make the first step smaller.”</li>
+                <li><span>Finish</span> “Make a draft for me to review.”</li>
+              </ul>
+            </div>
+
+            <p class="voice-privacy-note"><span aria-hidden="true">◎</span> No conversation text is displayed. Nothing reaches your board until you approve it.</p>
           </aside>
         </div>
 
@@ -75,9 +87,9 @@
             <h2 id="journey-title">From thought to something you can act on</h2>
           </div>
           <ol class="journey-steps">
-            <li><span>01</span><div><strong>Talk naturally</strong><p>Refine the thought together. Interrupt or correct anything.</p></div></li>
-            <li><span>02</span><div><strong>Ask for a draft</strong><p>Say “make a draft” when the plan feels right.</p></div></li>
-            <li><span>03</span><div><strong>Review, then approve</strong><p>Edit the details before anything reaches your board.</p></div></li>
+            <li><span>01</span><div><strong>Talk naturally</strong><p>Speak, pause, and interrupt as you would in person.</p></div></li>
+            <li><span>02</span><div><strong>Refine out loud</strong><p>Correct details or ask for a simpler plan at any time.</p></div></li>
+            <li><span>03</span><div><strong>Create, review, approve</strong><p>Say “make a draft,” then inspect it before it reaches your board.</p></div></li>
           </ol>
           <div id="draft-handoff" class="draft-handoff" hidden>
             <div><span class="handoff-dot" aria-hidden="true"></span><strong id="draft-handoff-title">A draft is ready</strong><p id="draft-handoff-copy">Check the details before saving it.</p></div>

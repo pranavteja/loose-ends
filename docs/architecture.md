@@ -6,8 +6,8 @@ This document describes the implemented direction as of 17 November 2026. The br
 
 ```mermaid
 flowchart LR
-    B["Browser: Talk / Review / Board"] <-->|"HTTPS/WSS media and text"| LK["LiveKit Cloud"]
-    A["Python voice agent"] <-->|"Room audio, captions, replies"| LK
+    B["Browser: Talk / Review / Board"] <-->|"WSS audio + hidden response stream"| LK["LiveKit Cloud"]
+    A["Python voice agent"] <-->|"Room audio + internal model text"| LK
     A <-->|"Whisper turns + OSS 20B dialogue"| G["Groq API"]
     B <-->|"Token + draft/task JSON"| W["Local FastAPI :7861"]
     W <-->|"Validated service calls"| S["Python application services"]
@@ -18,9 +18,9 @@ flowchart LR
 Two local processes are required:
 
 - `python app.py` serves the UI and local API on port 7861.
-- `python -m loose_ends.voice_agent dev` joins dispatched LiveKit rooms and runs the conversation.
+- `python -m loose_ends.voice_agent start` joins dispatched LiveKit rooms and runs the conversation.
 
-LiveKit transports real-time media and text; it is not the speech or reasoning model. Groq provides Whisper speech-to-text and OSS 20B reasoning. Final agent text returns through LiveKit, and browser speech synthesis speaks it locally.
+LiveKit transports real-time media and a hidden response stream; it is not the speech or reasoning model. Groq provides Whisper speech-to-text and OSS 20B reasoning. Final agent text returns through LiveKit only as an implementation detail, and browser speech synthesis speaks it locally. Talk never renders that text as chat.
 
 ## Product journey
 
@@ -32,11 +32,14 @@ sequenceDiagram
     participant S as Application service
     participant D as SQLite
     U->>UI: Start talking
-    UI->>V: LiveKit audio/text turn
-    V-->>UI: Conversational reply + caption
+    UI->>V: LiveKit microphone audio
+    V-->>UI: Spoken conversational reply
     U->>V: "Make a draft"
     V->>S: Create persisted proposal
     S->>D: Save draft and source context
+    U->>V: "Actually, change it to Friday"
+    V->>S: Revise the same pending capture
+    S->>D: Supersede old proposal; save current draft
     UI->>S: Refresh Review count
     U->>UI: End conversation
     UI->>S: Load drafts
@@ -47,15 +50,15 @@ sequenceDiagram
     UI-->>U: Open Board
 ```
 
-The model may discuss and refine freely, but it creates a persisted proposal only after an explicit drafting request. A proposal is not a task. Approval is the boundary that creates board state.
+The model may discuss and refine freely, but it creates a persisted proposal only after an explicit drafting request. After that, an explicit spoken correction can revise the same capture and supersede its earlier proposal. A proposal is not a task. Approval is the boundary that creates board state.
 
 ## Modules and responsibilities
 
 | Module | Responsibility |
 |---|---|
-| `voice-ui/` | Responsive shell, Talk/Review/Board navigation, LiveKit browser client, transcript, browser speech, API rendering. |
+| `voice-ui/` | Responsive shell, Talk/Review/Board navigation, LiveKit browser client, voice states, barge-in, browser speech, API rendering. |
 | `voice_server.py` | Static files, health/token routes, review and board JSON routes; no business rules in the browser. |
-| `loose_ends/voice_agent.py` | Turn detection, Groq Whisper, OSS 20B conversation, and explicit draft-creation tools. |
+| `loose_ends/voice_agent.py` | Turn detection, Groq Whisper, OSS 20B conversation, and guarded draft create/revise tools. |
 | `loose_ends/services.py` | Validation, proposal lifecycle, approval idempotency, task and step state. |
 | `loose_ends/database.py` | SQLite schema and transactional connections. |
 | `loose_ends/groq_adapter.py` | Structured planning and task-aware model requests used by application services. |
@@ -64,11 +67,12 @@ The model may discuss and refine freely, but it creates a persisted proposal onl
 
 Talk is the default route. Navigation uses `#talk`, `#review`, and `#board`, so reloads preserve the current place without requiring server-side routes.
 
-- **Talk** keeps ephemeral transcript and LiveKit room state in the browser.
+- **Talk** keeps LiveKit room and speech-playback state in the browser; it does not render or retain a chat transcript.
 - **Review** always reloads durable draft proposals from `/api/review`.
 - **Board** always reloads durable tasks and steps from `/api/board`.
 - The Review badge and Talk handoff card are derived from the same proposal list.
 - Ending a room refreshes proposals; Review opens when at least one exists.
+- Spoken corrections revise the active pending draft and the Review badge continues to represent its current version.
 - If no draft exists, the Talk view remains visible and explains that the user should say “make a draft” next time.
 
 ## Data and safety boundaries
@@ -82,11 +86,11 @@ The local token endpoint signs short-lived, opaque LiveKit identities. Provider 
 | Failure | Expected experience |
 |---|---|
 | Voice setup missing | Start shows a clear configuration message; Review and Board remain usable. |
-| Agent slow to join | Composer says it is waiting; connection state stays visible. |
+| Agent slow to join | The voice session panel says it is waiting; connection state stays visible. |
 | Groq turn fails | Agent explains the failure; the room can continue or be restarted. |
 | Draft refresh fails | Existing conversation remains; a toast reports the local API error. |
 | Approval conflicts | No duplicate is created; Review reports the conflict and reloads. |
-| Browser speech unavailable | The assistant reply remains visible as text. |
+| Browser speech unavailable | Talk shows an error; there is intentionally no text-chat fallback. Review and Board remain usable. |
 
 ## Growth triggers
 
@@ -94,7 +98,7 @@ The local token endpoint signs short-lived, opaque LiveKit identities. Provider 
 |---|---|
 | Several users or public access | Authentication, per-user records and rooms, PostgreSQL. |
 | Work must continue after process exit | Durable job queue and processing-status API. |
-| Interim word captions are essential | True streaming STT provider behind the same LiveKit agent. |
+| Faster turn recognition is essential | True streaming STT provider behind the same voice-only interface. |
 | Browser voice is not good enough | Dedicated streaming TTS with interruption support. |
 | External calendar/task actions are added | OAuth, explicit proposed-change review, and integration audit log. |
 

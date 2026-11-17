@@ -6,9 +6,9 @@ The voice-first shell is now the baseline. Do not continue parallel Gradio UI wo
 
 | Slice | Deliverable | Done when |
 |---|---|---|
-| 1 — complete | Real-time Talk experience | Turn-taking, captions, typed fallback, browser speech, and interruption work. |
+| 1 — complete | Real-time Talk experience | Voice-only turn-taking, browser speech, barge-in, and private hidden model text work. |
 | 2 — complete | Unified navigation and handoff | One port; no iframe; draft badge; end conversation opens Review. |
-| 3 — complete | Editable Review and navigable Board | Approve/dismiss and task/step status work through local APIs. |
+| 3 — complete | Voice refinement, editable Review and navigable Board | Spoken corrections revise one draft; approve/dismiss and task/step status work through local APIs. |
 | 4 | Reliability pass | Join timeout, provider failures, stale drafts, and reconnects have tested recovery. |
 | 5 | Device and accessibility pass | Keyboard, reduced motion, narrow layout, microphone permission, and system voices are checked. |
 | 6 | Demo and evaluation | Synthetic end-to-end script is repeatable and logs/tests provide evidence. |

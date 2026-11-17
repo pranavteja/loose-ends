@@ -18,24 +18,25 @@ On narrow screens, the navigation moves below the brand. No content is embedded 
 
 ## Talk
 
-The voice orb remains the primary interaction. Live notes sit beside it on desktop and below it on mobile. A short journey guide makes completion explicit:
+The voice orb remains the primary interaction. A voice-presence panel sits beside it on desktop and below it on mobile. It shows only room state, suggested spoken phrases, and privacy guidance—never transcript bubbles or a typed composer. A short journey guide makes completion explicit:
 
 ```text
-Talk naturally → say “make a draft” → review and approve
+Talk naturally → refine aloud → say “make a draft” → review and approve
 ```
 
-When a persisted draft appears, Talk shows a high-visibility “Draft ready — Review draft” card and increments the Review badge. Ending a conversation opens Review if a draft exists. If none exists, a message explains exactly what to say next time.
+When a persisted draft appears, Talk shows a high-visibility “Draft ready — Review draft” card and increments the Review badge. A spoken correction revises that same pending draft. Ending a conversation opens Review if a draft exists. If none exists, a message explains exactly what to say next time.
 
 Important Talk states:
 
 | State | Behaviour |
 |---|---|
-| Offline | Orb says Start talking; typed input is disabled. |
+| Offline | Orb says Start talking; no transcript or composer is present. |
 | Connecting | Explain whether the room or companion is being awaited. |
 | Listening | Animate the orb/wave; microphone remains interruptible. |
-| Thinking | Preserve the transcript and show a distinct warm state. |
+| Thinking | Preserve the audio session and show a distinct warm state without displaying words. |
 | Speaking | Speak final agent text and allow the user to interrupt. |
 | Draft ready | Show Review badge and handoff card without ending the room. |
+| Spoken correction | Supersede the earlier proposal and keep one current draft for the conversation. |
 | Ended without draft | Stay on Talk and explain “say make a draft.” |
 
 ## Review

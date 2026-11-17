@@ -48,6 +48,19 @@ _DRAFT_REQUEST_NEGATIONS = (
     r"\bwait\b",
     r"\bno\s+draft\b",
 )
+_DRAFT_REVISION_PATTERNS = (
+    r"\b(?:actually|instead)\b",
+    r"\b(?:change|update|revise|edit|correct|move|add|remove|drop|replace|rename)\b",
+    r"\bmake\s+(?:it|that|the\s+date|the\s+first\s+step)\b",
+    r"\bset\s+(?:it|that|the\s+date|the\s+time|the\s+deadline)\b",
+)
+_DRAFT_REVISION_NEGATIONS = (
+    r"\bdo\s+not\b",
+    r"\bdon't\b",
+    r"\bno\s+changes?\b",
+    r"\bleave\s+(?:it|that)\b",
+    r"\bkeep\s+(?:it|that)\b",
+)
 
 
 def _is_explicit_draft_request(message: str) -> bool:
@@ -56,6 +69,14 @@ def _is_explicit_draft_request(message: str) -> bool:
     if any(re.search(pattern, normalised) for pattern in _DRAFT_REQUEST_NEGATIONS):
         return False
     return any(re.search(pattern, normalised) for pattern in _DRAFT_REQUEST_PATTERNS)
+
+
+def _is_explicit_draft_revision(message: str) -> bool:
+    """Recognise a spoken correction that may revise an existing draft."""
+    normalised = " ".join(message.casefold().split())
+    if any(re.search(pattern, normalised) for pattern in _DRAFT_REVISION_NEGATIONS):
+        return False
+    return any(re.search(pattern, normalised) for pattern in _DRAFT_REVISION_PATTERNS)
 
 
 def _planner_service() -> LooseEndsService:
@@ -80,6 +101,9 @@ would make the plan materially clearer. Reflect corrections back accurately;
 never invent dates, commitments, progress, or reminders. Treat things called
 an idea, a maybe, or explicitly not a task as ideas.
 
+This is an audio-only experience. Never ask the user to type, read a transcript,
+or use chat. The user hears your response and can interrupt you at any time.
+
 Keep refining in conversation until the user explicitly asks you to create a
 draft, put it in review, or save it for review. At that point call
 prepare_review_draft with a compact, complete account of the user's intent,
@@ -87,17 +111,70 @@ including the user's answers and any corrections from the whole conversation.
 Tell the user the draft is editable and must still be approved on the review
 board. Never claim a task was saved or approved.
 
+Once a review draft exists, continue the voice conversation. If the user asks
+to change, add, remove, correct, or replace a detail, call revise_review_draft.
+Pass the complete corrected plan, including unchanged details from the earlier
+conversation—not only the latest correction. Revise the same draft; do not make
+another partial draft.
+
 Use read_board only when the user asks about work already on the board. The
 board tool is read-only. Do not use tools during the opening greeting.
 """.strip()
         )
         self._service = service
         self._draft_requested = False
+        self._draft_revision_requested = False
+        self._active_capture_id: str | None = None
 
     def observe_user_turn(self, message: str) -> None:
         """Unlock one draft write only after an explicit affirmative request."""
         if _is_explicit_draft_request(message):
             self._draft_requested = True
+        if self._active_capture_id and _is_explicit_draft_revision(message):
+            self._draft_revision_requested = True
+
+    async def _persist_review_draft(self, spoken_note: str) -> dict[str, Any]:
+        if self._active_capture_id:
+            pending = await asyncio.to_thread(self._service.list_review_proposals)
+            active_is_pending = any(
+                draft["capture_id"] == self._active_capture_id for draft in pending
+            )
+            if not active_is_pending:
+                return {
+                    "error": "The active draft is no longer waiting for review.",
+                    "instruction": "Do not change approved work. Ask the user to start a new plan instead.",
+                    "approval_required": True,
+                }
+            result = await asyncio.to_thread(
+                self._service.edit_transcript_and_process,
+                self._active_capture_id,
+                spoken_note,
+            )
+            action = "revised"
+        else:
+            self._active_capture_id = await asyncio.to_thread(
+                self._service.create_text_capture,
+                spoken_note,
+            )
+            result = await asyncio.to_thread(
+                self._service.process_capture,
+                self._active_capture_id,
+                0,
+            )
+            action = "created"
+
+        drafts = await asyncio.to_thread(self._service.list_review_proposals)
+        current = [
+            draft for draft in drafts if draft["capture_id"] == self._active_capture_id
+        ]
+        return {
+            "summary": result.summary,
+            "action": action,
+            "draft_count": len(current),
+            "drafts": [draft["title"] for draft in current],
+            "review_url": "http://127.0.0.1:7861/#review",
+            "approval_required": True,
+        }
 
     @function_tool()
     async def prepare_review_draft(self, context: RunContext, spoken_note: str) -> dict[str, Any]:
@@ -122,20 +199,43 @@ board tool is read-only. Do not use tools during the opening greeting.
         self._draft_requested = False
         context.disallow_interruptions()
         try:
-            capture_id = await asyncio.to_thread(self._service.create_text_capture, spoken_note)
-            result = await asyncio.to_thread(self._service.process_capture, capture_id, 0)
-            drafts = await asyncio.to_thread(self._service.list_review_proposals)
-            created = [draft for draft in drafts if draft["capture_id"] == capture_id]
-            return {
-                "summary": result.summary,
-                "draft_count": len(created),
-                "drafts": [draft["title"] for draft in created],
-                "review_url": "http://127.0.0.1:7861/",
-                "approval_required": True,
-            }
+            return await self._persist_review_draft(spoken_note)
         except ServiceError as error:
             logger.info("Voice draft creation failed: %s", error)
             return {"error": str(error), "capture_saved": True}
+
+    @function_tool()
+    async def revise_review_draft(self, context: RunContext, revised_spoken_note: str) -> dict[str, Any]:
+        """Revise the current editable review draft after a spoken correction.
+
+        Call only after a review draft exists and the user explicitly asks to
+        change, add, remove, or correct something. This supersedes the earlier
+        proposal from the same conversation; it never changes an approved task.
+
+        Args:
+            revised_spoken_note: The complete corrected plan, including relevant
+                unchanged details and every correction from the conversation.
+        """
+        if not self._active_capture_id:
+            return {
+                "error": "There is no active draft to revise.",
+                "instruction": "Keep refining verbally, then ask the user to say 'make a draft'.",
+                "approval_required": True,
+            }
+        if not self._draft_revision_requested:
+            return {
+                "error": "Draft revision is still locked.",
+                "instruction": "Only revise after the user explicitly asks for a change.",
+                "approval_required": True,
+            }
+
+        self._draft_revision_requested = False
+        context.disallow_interruptions()
+        try:
+            return await self._persist_review_draft(revised_spoken_note)
+        except ServiceError as error:
+            logger.info("Voice draft revision failed: %s", error)
+            return {"error": str(error), "draft_preserved": True}
 
     @function_tool()
     async def read_board(self, context: RunContext) -> list[dict[str, Any]]:
@@ -186,28 +286,17 @@ async def voice_entrypoint(ctx: JobContext) -> None:
     @session.on("user_input_transcribed")
     def log_transcript(event: Any) -> None:
         if event.is_final:
-            logger.info("Voice turn transcribed (%s): %s", event.language or "und", event.transcript)
+            logger.info(
+                "Voice turn transcribed (%s, %d characters)",
+                event.language or "und",
+                len(event.transcript),
+            )
             companion.observe_user_turn(event.transcript)
-
-    async def handle_text_input(active_session: AgentSession, event: room_io.TextInputEvent) -> None:
-        """Route typed messages through the same agent and conversation history."""
-        message = event.text.strip()
-        if not message:
-            return
-        logger.info("Typed turn received: %s", message)
-        companion.observe_user_turn(message)
-        try:
-            await active_session.interrupt()
-        except RuntimeError:
-            # There may be no speech to interrupt; the typed turn is still valid.
-            pass
-        active_session.generate_reply(user_input=message, allow_interruptions=True)
 
     await session.start(
         agent=companion,
         room=ctx.room,
         room_options=room_io.RoomOptions(
-            text_input=room_io.TextInputOptions(text_input_cb=handle_text_input),
             audio_output=False,
             text_output=room_io.TextOutputOptions(sync_transcription=False),
         ),

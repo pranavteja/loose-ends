@@ -2,7 +2,7 @@
 
 ## Phase A: personal companion and internal board
 
-Capture → optional clarification → suggested steps → review → internal task board. The home-screen bot answers questions about saved work. Support short English voice notes and text; one speaker, up to two minutes, one level of subtasks. Audio-file upload is deferred behind browser recording and text.
+Voice conversation → optional clarification → suggested steps → review → internal task board. The home-screen companion answers spoken questions about saved work. Support short English voice sessions with one speaker and one level of subtasks. Talk intentionally has no typed or transcript-based chat.
 
 Deadlines and suggested work times are different fields. Neither is mandatory. No actual reminder delivery is included in Phase A. Suggestions must not be presented as scheduled notifications.
 
@@ -19,10 +19,10 @@ Deadlines and suggested work times are different fields. Neither is mandatory. N
 | AC09 | Review independently | Approve/edit/dismiss one proposal without changing others |
 | AC10 | Avoid duplicate saves | Retried approval creates exactly one task and its steps |
 | AC11 | Persist progress | Task and step changes survive refresh/restart |
-| AC12 | Keep revisions separate | Edited transcript supersedes pending drafts, not approved tasks |
-| AC13 | Keep input accessible | Microphone denied → typed input remains usable |
+| AC12 | Keep revisions separate | Spoken correction supersedes the pending draft, not approved tasks |
+| AC13 | Make voice requirements clear | Microphone/speech unavailable → actionable error; Review and Board remain usable |
 | AC14 | Ground companion answers | Answers refer to saved tasks and do not invent completion |
-| AC15 | Separate suggestions from writes | Chat advice does not silently alter task state |
+| AC15 | Separate suggestions from writes | Voice guidance does not silently alter approved task state |
 | AC16 | Keep Kane optional at runtime | App starts and core flow works without Kane credentials |
 | AC17 | Delete capture consistently | Audio/source context removed according to documented policy |
 

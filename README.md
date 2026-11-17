@@ -8,11 +8,11 @@ Loose Ends is a local, single-user web application. Talk through an unfinished t
 
 The app is one responsive interface at `http://127.0.0.1:7861` with three persistent views:
 
-- **Talk** — natural turn-taking, interruption, live notes, and typed fallback.
+- **Talk** — a voice-only conversation with natural turn-taking, spoken replies, and interruption.
 - **Review** — editable draft title, description, dates, suggested steps, source context, approve/dismiss.
 - **Board** — approved tasks, ideas, ordered steps, and explicit completion/cancellation.
 
-The important boundary is intentional: conversation does not silently create tasks. When the plan sounds right, say **“make a draft.”** The Review badge appears, ending the conversation opens the draft, and approval adds it to the Board.
+The important boundary is intentional: conversation does not silently create tasks. When the plan sounds right, say **“make a draft.”** You can keep speaking to revise that draft—“actually, change it to Friday”—before opening Review. The Review badge appears, ending the conversation opens the current draft, and approval adds it to the Board.
 
 ```mermaid
 flowchart LR
@@ -27,14 +27,14 @@ flowchart LR
 
 | Layer | Implementation | Responsibility |
 |---|---|---|
-| Product UI | Vite + plain JavaScript/CSS | Talk/Review/Board shell, LiveKit client, transcript, browser speech |
-| Real-time transport | LiveKit | WebRTC room, microphone transport, agent dispatch, text streams |
+| Product UI | Vite + plain JavaScript/CSS | Talk/Review/Board shell, LiveKit client, voice session state, browser speech |
+| Real-time transport | LiveKit | WebRTC room, microphone transport, agent dispatch, hidden response stream |
 | Voice intelligence | Python LiveKit agent + Groq | Whisper speech-to-text, OSS 20B conversation and planning |
 | Local web/API | FastAPI | Static UI, private token creation, draft and board endpoints |
 | Business rules | Plain Python services | Validation, bounded planning, approval, task/step state |
 | Storage | SQLite | Durable proposals, approved work, and progress |
 
-LiveKit is the real-time transport rather than the speech model. Groq Whisper transcribes a completed turn, OSS 20B reasons and replies, LiveKit returns the final text, and the browser speaks it with the best installed system voice. This avoids a separate paid TTS dependency while preserving interruption and low-latency turn-taking.
+LiveKit is the real-time transport rather than the speech model. Groq Whisper privately transcribes a completed turn, OSS 20B reasons and replies, LiveKit returns a hidden response stream, and the browser speaks it with the best installed system voice. Conversation text is never rendered in Talk. This avoids a separate paid TTS dependency while preserving interruption and low-latency turn-taking.
 
 ## Local setup
 
@@ -85,7 +85,7 @@ Terminal 2 — LiveKit voice agent:
 
 ```bash
 source .venv/bin/activate
-python -m loose_ends.voice_agent dev 2>&1 | tee -a data/logs/voice-agent.log
+python -m loose_ends.voice_agent start 2>&1 | tee -a data/logs/voice-agent.log
 ```
 
 Open [http://127.0.0.1:7861](http://127.0.0.1:7861). There is no second page or iframe to open.
@@ -95,21 +95,22 @@ Open [http://127.0.0.1:7861](http://127.0.0.1:7861). There is no second page or 
 1. Press **Start talking** and allow microphone access.
 2. Describe the loose end and answer or correct the companion naturally.
 3. Say **“make a draft”** when the proposed plan feels useful.
-4. Press **End conversation**; the app opens Review when the draft exists.
-5. Edit and select **Approve & add to board**.
-6. Check off steps or complete/cancel the task from Board.
+4. Keep refining by voice if needed; explicit corrections revise that same pending draft.
+5. Press **End conversation**; the app opens Review when the draft exists.
+6. Inspect it, select **Approve & add to board**, then track it from Board.
 
 If you end without a draft, the app stays on Talk and explains what to do. Review and Board are always reachable from the header.
 
 ## Current guarantees and limits
 
 - Short, single-speaker English conversations are the initial target.
-- Whisper is segment-based: captions arrive after a spoken turn, not word-by-word while speaking.
+- Whisper is segment-based: the agent understands a turn after a short pause rather than continuously while words are still being spoken.
 - Every proposal remains editable and requires approval.
 - Repeated approval does not create a duplicate task.
 - Unknown dates remain blank and unresolved details stay visible.
 - The app does not schedule reminders, send messages, operate a calendar, or change external services.
 - Browser voice quality depends on the browser and operating system.
+- Talk has no typed fallback or visible transcript; microphone access and browser speech are required.
 - The default server binds to loopback; do not expose it publicly without authentication and a security review.
 
 ## Verification

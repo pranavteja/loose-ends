@@ -10,7 +10,7 @@ from typing import Any
 from loose_ends.config import Settings
 from loose_ends.database import Database
 from loose_ends.services import LooseEndsService
-from loose_ends.voice_agent import _is_explicit_draft_request
+from loose_ends.voice_agent import _is_explicit_draft_request, _is_explicit_draft_revision
 
 
 class FakePlanner:
@@ -102,6 +102,25 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(_is_explicit_draft_request("Send this to review"))
         self.assertFalse(_is_explicit_draft_request("I need to send a parcel"))
         self.assertFalse(_is_explicit_draft_request("Don't make a draft yet"))
+
+    def test_draft_revision_requires_an_explicit_correction(self) -> None:
+        self.assertTrue(_is_explicit_draft_revision("Actually, change the date to Friday"))
+        self.assertTrue(_is_explicit_draft_revision("Remove the second step"))
+        self.assertFalse(_is_explicit_draft_revision("That sounds good"))
+        self.assertFalse(_is_explicit_draft_revision("Don't change the date"))
+
+    def test_voice_revision_supersedes_the_previous_review_draft(self) -> None:
+        capture_id = self.service.create_text_capture("Send the proposal tomorrow")
+        self.service.process_capture(capture_id, question_budget=0)
+        first = self.service.list_review_proposals()[0]
+
+        self.service.edit_transcript_and_process(capture_id, "Send the revised proposal on Friday")
+
+        review = self.service.list_review_proposals()
+        self.assertEqual(len(review), 1)
+        self.assertNotEqual(review[0]["id"], first["id"])
+        self.assertEqual(review[0]["source_excerpt"], "Send the revised proposal on Friday")
+        self.assertEqual(self.service.get_proposal(first["id"])["state"], "superseded")
 
 
 if __name__ == "__main__":

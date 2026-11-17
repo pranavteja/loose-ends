@@ -6,7 +6,7 @@ Decision date: 17 November 2026. This supersedes the 14 November Gradio decision
 
 Use one responsive browser application with three persistent views:
 
-1. **Talk** — a LiveKit conversation with live notes and typed fallback.
+1. **Talk** — an audio-only LiveKit conversation with spoken replies and barge-in; no transcript or typed composer.
 2. **Review** — editable drafts created during the conversation.
 3. **Board** — approved tasks, ideas, steps, and completion state.
 
@@ -23,6 +23,7 @@ The revised shell keeps the part that worked and removes the seams:
 - a visible Talk → Draft → Review → Board journey;
 - a Review badge and “draft ready” call to action;
 - ending a conversation opens Review when a draft exists;
+- spoken corrections revise the current pending draft rather than creating another partial draft;
 - empty states explain the exact next action;
 - secrets, persistence, and approval rules remain server-side.
 
@@ -30,7 +31,7 @@ The revised shell keeps the part that worked and removes the seams:
 
 | Principle | UI consequence |
 |---|---|
-| Conversation first | Talk is the default view and the voice orb remains the main action. |
+| Conversation first | Talk is the default view, the voice orb is the main action, and no chat UI competes with speech. |
 | Make the next step obvious | The page explains “say make a draft”; ending routes to Review when possible. |
 | Suggestions are not commitments | Drafts are editable and never reach the Board without approval. |
 | Keep context visible | Review shows the source excerpt and unresolved detail beside the proposed plan. |
@@ -39,7 +40,7 @@ The revised shell keeps the part that worked and removes the seams:
 
 ## Technical boundaries
 
-- `voice-ui/` owns browser rendering, navigation, WebRTC interaction, and browser speech synthesis.
+- `voice-ui/` owns browser rendering, navigation, WebRTC interaction, barge-in, and browser speech synthesis.
 - `voice_server.py` serves the compiled assets, token endpoint, and local JSON API.
 - `loose_ends/services.py` owns validation, idempotent approval, and state changes.
 - SQLite is durable state; JavaScript state is presentation state only.
@@ -48,13 +49,13 @@ The revised shell keeps the part that worked and removes the seams:
 
 ## Accepted trade-offs
 
-The dedicated frontend needs explicit HTML, CSS, and API wiring, but the implemented voice experience already required those capabilities. LiveKit adds a separate worker process, and Groq Whisper publishes a turn after the user pauses rather than word-by-word interim transcription. Browser speech quality depends on the installed browser/OS voices. These are preferable to splitting the main journey across two unrelated interfaces.
+The dedicated frontend needs explicit HTML, CSS, and API wiring, but the implemented voice experience already required those capabilities. LiveKit adds a separate worker process, and Groq Whisper publishes a turn after the user pauses rather than word-by-word interim transcription. Browser speech quality depends on installed browser/OS voices, and Talk cannot fall back to typing when microphone or speech support is unavailable. Review and Board remain usable. These are preferable to splitting the main journey across two unrelated interfaces.
 
 ## Revisit when
 
 - a public or multi-user deployment requires authentication and per-user room/data isolation;
 - long-running planning jobs need durable workers and status polling;
-- a true streaming STT provider is needed for interim word captions;
+- lower-latency streaming STT is needed for faster turn recognition;
 - mobile packaging requires native audio/session integration;
 - browser speech quality is insufficient and a dedicated TTS provider is justified.
 

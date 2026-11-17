@@ -48,8 +48,9 @@ Ideas share the Task table with `kind=idea` and have no steps. Unknown dates are
 
 ## Model boundaries
 
-- Voice agent: spoken turn → Groq Whisper transcript → OSS 20B conversational response.
-- Draft tool: explicit user request → validated proposal persisted by application services.
+- Voice agent: spoken turn → private Groq Whisper transcript → OSS 20B response → browser speech; no chat text is rendered.
+- Draft-create tool: explicit user request → validated proposal persisted by application services.
+- Draft-revise tool: explicit spoken correction + active pending capture → supersede its earlier proposal and persist the current version.
 - Structured planner: capture + replies + time context → question or proposals.
 - Task-aware answer: message + bounded saved-task context → grounded response.
 

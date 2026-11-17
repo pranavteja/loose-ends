@@ -4,11 +4,9 @@ import './styles.css';
 const connectButton = document.querySelector('#connect-button');
 const connectionPill = document.querySelector('#connection-pill');
 const statusText = document.querySelector('#conversation-status');
-const transcript = document.querySelector('#transcript');
-const clearButton = document.querySelector('#clear-notes');
-const textForm = document.querySelector('#text-form');
-const textInput = document.querySelector('#text-message');
-const sendButton = document.querySelector('#send-button');
+const voicePresence = document.querySelector('#voice-presence');
+const sessionStateTitle = document.querySelector('#session-state-title');
+const sessionStateCopy = document.querySelector('#session-state-copy');
 const audioOutput = document.querySelector('#audio-output');
 const reviewCount = document.querySelector('#review-count');
 const draftHandoff = document.querySelector('#draft-handoff');
@@ -37,7 +35,6 @@ const toast = document.querySelector('#toast');
 let room = null;
 let agentParticipant = null;
 let attachedAudio = new Map();
-let transcriptParts = new Map();
 let spokenSegments = new Set();
 let reviewProposals = [];
 let selectedProposalId = null;
@@ -96,24 +93,30 @@ document.querySelectorAll('[data-view-target]').forEach((button) => {
   button.addEventListener('click', () => showView(button.dataset.viewTarget));
 });
 
-function setComposerReady(ready) {
-  textInput.disabled = !ready;
-  sendButton.disabled = !ready;
-  textInput.placeholder = ready
-    ? 'Or type a thought…'
-    : room
-      ? 'Waiting for Loose Ends to join…'
-      : 'Start the conversation to type…';
-}
-
 function setStatus(status, detail) {
   document.body.dataset.voiceState = status;
   connectionPill.dataset.status = status;
+  voicePresence.dataset.status = status;
   const labels = {
     offline: 'Not connected', connecting: 'Connecting…', listening: 'Listening',
     thinking: 'Thinking…', speaking: 'Speaking', error: 'Needs attention',
   };
+  const titles = {
+    offline: 'Ready when you are', connecting: 'Opening your private room',
+    listening: 'I’m listening', thinking: 'Working that through',
+    speaking: 'Loose Ends is speaking', error: 'The room needs attention',
+  };
+  const copies = {
+    offline: 'Start the room, then talk exactly as you would to a thoughtful planning partner.',
+    connecting: 'Connecting your microphone and bringing the planning companion into the room.',
+    listening: 'Take your time. Pause naturally, or start speaking to interrupt the response.',
+    thinking: 'Your thought is being understood and shaped into a useful next question.',
+    speaking: 'You can speak over the response at any time—your voice takes priority.',
+    error: 'Check the local voice setup and try starting the conversation again.',
+  };
   connectionPill.textContent = labels[status] || labels.offline;
+  sessionStateTitle.textContent = titles[status] || titles.offline;
+  sessionStateCopy.textContent = detail || copies[status] || copies.offline;
   statusText.textContent = detail || {
     offline: 'One tap to begin · You can interrupt at any time',
     connecting: 'Warming up a private voice room…',
@@ -122,32 +125,6 @@ function setStatus(status, detail) {
     speaking: 'Loose Ends is responding — speak to interrupt.',
     error: 'Check your local voice setup, then try again.',
   }[status];
-}
-
-function removeEmptyState() {
-  transcript.querySelector('.empty-state')?.remove();
-}
-
-function addMessage(role, text, { pending = false, key = crypto.randomUUID() } = {}) {
-  if (!text?.trim()) return;
-  removeEmptyState();
-  let item = transcript.querySelector(`[data-message-id="${CSS.escape(key)}"]`);
-  if (!item) {
-    item = document.createElement('article');
-    item.className = `message message-${role}`;
-    item.dataset.messageId = key;
-    item.innerHTML = `<span class="message-role">${role === 'user' ? 'You' : 'Loose Ends'}</span><p></p>`;
-    transcript.append(item);
-  }
-  item.querySelector('p').innerHTML = escapeHtml(text);
-  item.classList.toggle('message-pending', pending);
-  transcript.scrollTop = transcript.scrollHeight;
-}
-
-function replaceSegment(segmentKey, role, text, isFinal) {
-  transcriptParts.set(segmentKey, text);
-  addMessage(role, text, { pending: !isFinal, key: segmentKey });
-  if (isFinal) transcriptParts.delete(segmentKey);
 }
 
 function preferredBrowserVoice() {
@@ -163,7 +140,7 @@ function speakAssistantReply(text, segmentId) {
   if (!text?.trim() || spokenSegments.has(segmentId)) return;
   spokenSegments.add(segmentId);
   if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
-    setStatus('listening', 'Reply received as text. Browser speech is unavailable here.');
+    setStatus('error', 'This browser has no speech voice available. Use a browser with speech synthesis enabled.');
     return;
   }
 
@@ -178,7 +155,7 @@ function speakAssistantReply(text, segmentId) {
   utterance.onend = () => { if (room) setStatus('listening'); };
   utterance.onerror = (event) => {
     if (event.error !== 'interrupted' && event.error !== 'canceled') {
-      setStatus('error', 'The reply is visible, but this browser could not speak it.');
+      setStatus('error', 'The browser could not speak the response. Reconnect and try again.');
     }
   };
   window.speechSynthesis.speak(utterance);
@@ -202,7 +179,6 @@ function detachRemoteAudio(track, publication) {
 function agentStateChanged(participant) {
   if (participant) {
     agentParticipant = participant;
-    setComposerReady(true);
   }
   const state = participant.attributes?.['lk.agent.state'];
   if (state && ['listening', 'thinking', 'speaking'].includes(state)) setStatus(state);
@@ -211,14 +187,12 @@ function agentStateChanged(participant) {
 function agentConnected(participant) {
   if (!participant) return;
   agentParticipant = participant;
-  setComposerReady(true);
   agentStateChanged(participant);
 }
 
 function agentDisconnected(participant) {
   if (participant?.identity !== agentParticipant?.identity) return;
   agentParticipant = null;
-  setComposerReady(false);
   if (room) setStatus('connecting', 'The planning companion is reconnecting…');
 }
 
@@ -235,7 +209,10 @@ async function receiveTranscript(reader, participant) {
   const segmentId = attributes['lk.segment_id'] || reader.info.id || crypto.randomUUID();
   const isFinal = isTrackTranscript ? attributes['lk.transcription_final'] === 'true' : true;
   const role = participant?.identity === room?.localParticipant.identity ? 'user' : 'assistant';
-  replaceSegment(segmentId, role, message, isFinal);
+  if (role === 'user' && isFinal) {
+    window.speechSynthesis?.cancel();
+    setStatus('thinking');
+  }
   if (role === 'assistant' && isFinal) {
     speakAssistantReply(message, segmentId);
     window.setTimeout(() => refreshReview({ quiet: true }), 700);
@@ -250,7 +227,6 @@ function wireRoom(nextRoom) {
     if (state === ConnectionState.Disconnected) {
       window.speechSynthesis?.cancel();
       agentParticipant = null;
-      setComposerReady(false);
       setStatus('offline');
     }
   });
@@ -259,13 +235,21 @@ function wireRoom(nextRoom) {
   nextRoom.on(RoomEvent.ParticipantAttributesChanged, (_changed, participant) => agentStateChanged(participant));
   nextRoom.on(RoomEvent.ParticipantConnected, agentConnected);
   nextRoom.on(RoomEvent.ParticipantDisconnected, agentDisconnected);
+  nextRoom.on(RoomEvent.ActiveSpeakersChanged, (participants) => {
+    const userIsSpeaking = participants.some(
+      (participant) => participant.identity === nextRoom.localParticipant.identity,
+    );
+    if (userIsSpeaking && window.speechSynthesis?.speaking) {
+      window.speechSynthesis.cancel();
+      setStatus('listening', 'Go ahead—I stopped speaking and I’m listening.');
+    }
+  });
   nextRoom.on(RoomEvent.Disconnected, () => {
     attachedAudio.forEach((element) => element.remove());
     attachedAudio = new Map();
     room = null;
     agentParticipant = null;
     spokenSegments = new Set();
-    setComposerReady(false);
     connectButton.disabled = false;
     connectButton.querySelector('#orb-label').textContent = 'Start talking';
   });
@@ -523,54 +507,8 @@ async function refreshBoard() {
 }
 
 connectButton.addEventListener('click', startConversation);
-clearButton.addEventListener('click', () => {
-  window.speechSynthesis?.cancel();
-  transcriptParts.clear();
-  spokenSegments.clear();
-  transcript.innerHTML = `
-    <div class="empty-state">
-      <span class="empty-icon" aria-hidden="true">◎</span>
-      <p>Your conversation will appear here.</p>
-      <small>Nothing reaches your board until you review and approve it.</small>
-    </div>`;
-});
-
-textForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const message = textInput.value.trim();
-  if (!message) return;
-  if (!room) {
-    setStatus('error', 'Start the conversation before sending a typed message.');
-    return;
-  }
-  if (!agentParticipant) {
-    setStatus('connecting', 'Please wait a moment for the planning companion to join.');
-    return;
-  }
-
-  textInput.disabled = true;
-  sendButton.disabled = true;
-  window.speechSynthesis?.cancel();
-  try {
-    await room.localParticipant.sendText(message, {
-      topic: 'lk.chat', destinationIdentities: [agentParticipant.identity],
-    });
-    textInput.value = '';
-    addMessage('user', message);
-    setStatus('thinking', 'Message delivered. Loose Ends is thinking…');
-  } catch (error) {
-    console.error(error);
-    setStatus('error', 'Your typed message could not be sent. Please reconnect.');
-  } finally {
-    const ready = Boolean(room && agentParticipant);
-    textInput.disabled = !ready;
-    sendButton.disabled = !ready;
-    if (ready) textInput.focus();
-  }
-});
 
 window.addEventListener('hashchange', () => showView(location.hash.slice(1), { updateHash: false }));
-setComposerReady(false);
 setStatus('offline');
 showView(location.hash.slice(1) || 'talk', { updateHash: false });
 refreshReview({ quiet: true });
