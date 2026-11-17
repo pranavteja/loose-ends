@@ -12,7 +12,7 @@
 ## Product decisions still open
 
 - [ ] Choose how long source audio/transcripts should be retained.
-- [ ] Decide whether browser speech quality is sufficient for the intended demo devices.
+- [ ] Decide whether the selected Groq Orpheus voice is right for the intended demo.
 - [ ] Decide whether lower-latency streaming STT is needed even though Talk does not display captions.
 - [ ] Confirm the default timezone and how users will change it.
 - [ ] Decide when completed/cancelled work should be archived or hidden.
@@ -20,7 +20,7 @@
 
 ## Verification before a public demo
 
-- [ ] Test microphone permission, interruption, and browser speech on the target laptop.
+- [ ] Test microphone permission, interruption, and LiveKit room audio on the target laptop.
 - [ ] Test one mobile browser at narrow width.
 - [ ] Verify “make a draft” reliably creates one proposal and updates the Review badge.
 - [ ] Verify a spoken correction supersedes that proposal instead of adding a duplicate draft.

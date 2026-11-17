@@ -6,9 +6,9 @@ This document describes the implemented direction as of 17 November 2026. The br
 
 ```mermaid
 flowchart LR
-    B["Browser: Talk / Review / Board"] <-->|"WSS audio + hidden response stream"| LK["LiveKit Cloud"]
+    B["Browser: Talk / Review / Board"] <-->|"WebRTC microphone + agent audio"| LK["LiveKit Cloud"]
     A["Python voice agent"] <-->|"Room audio + internal model text"| LK
-    A <-->|"Whisper turns + OSS 20B dialogue"| G["Groq API"]
+    A <-->|"Whisper + OSS 20B + Orpheus TTS"| G["Groq API"]
     B <-->|"Token + draft/task JSON"| W["Local FastAPI :7861"]
     W <-->|"Validated service calls"| S["Python application services"]
     A -->|"Create review draft only when asked"| S
@@ -20,7 +20,7 @@ Two local processes are required:
 - `python app.py` serves the UI and local API on port 7861.
 - `python -m loose_ends.voice_agent start` joins dispatched LiveKit rooms and runs the conversation.
 
-LiveKit transports real-time media and a hidden response stream; it is not the speech or reasoning model. Groq provides Whisper speech-to-text and OSS 20B reasoning. Final agent text returns through LiveKit only as an implementation detail, and browser speech synthesis speaks it locally. Talk never renders that text as chat.
+LiveKit transports real-time media and a hidden response stream; it is not the speech or reasoning model. Groq provides Whisper speech-to-text, OSS 20B reasoning, and Orpheus text-to-speech. The agent publishes generated speech into the room as WebRTC audio. Talk never renders the model text as chat.
 
 ## Product journey
 
@@ -56,7 +56,7 @@ The model may discuss and refine freely, but it creates a persisted proposal onl
 
 | Module | Responsibility |
 |---|---|
-| `voice-ui/` | Responsive shell, Talk/Review/Board navigation, LiveKit browser client, voice states, barge-in, browser speech, API rendering. |
+| `voice-ui/` | Responsive shell, Talk/Review/Board navigation, LiveKit browser client, voice states, room audio, API rendering. |
 | `voice_server.py` | Static files, health/token routes, review and board JSON routes; no business rules in the browser. |
 | `loose_ends/voice_agent.py` | Turn detection, Groq Whisper, OSS 20B conversation, and guarded draft create/revise tools. |
 | `loose_ends/services.py` | Validation, proposal lifecycle, approval idempotency, task and step state. |
@@ -67,7 +67,7 @@ The model may discuss and refine freely, but it creates a persisted proposal onl
 
 Talk is the default route. Navigation uses `#talk`, `#review`, and `#board`, so reloads preserve the current place without requiring server-side routes.
 
-- **Talk** keeps LiveKit room and speech-playback state in the browser; it does not render or retain a chat transcript.
+- **Talk** keeps LiveKit room and remote-audio state in the browser; it does not render or retain a chat transcript.
 - **Review** always reloads durable draft proposals from `/api/review`.
 - **Board** always reloads durable tasks and steps from `/api/board`.
 - The Review badge and Talk handoff card are derived from the same proposal list.
@@ -90,7 +90,7 @@ The local token endpoint signs short-lived, opaque LiveKit identities. Provider 
 | Groq turn fails | Agent explains the failure; the room can continue or be restarted. |
 | Draft refresh fails | Existing conversation remains; a toast reports the local API error. |
 | Approval conflicts | No duplicate is created; Review reports the conflict and reloads. |
-| Browser speech unavailable | Talk shows an error; there is intentionally no text-chat fallback. Review and Board remain usable. |
+| Groq TTS fails | The agent reports a provider error in logs; the room can be restarted. Review and Board remain usable. |
 
 ## Growth triggers
 
@@ -99,7 +99,7 @@ The local token endpoint signs short-lived, opaque LiveKit identities. Provider 
 | Several users or public access | Authentication, per-user records and rooms, PostgreSQL. |
 | Work must continue after process exit | Durable job queue and processing-status API. |
 | Faster turn recognition is essential | True streaming STT provider behind the same voice-only interface. |
-| Browser voice is not good enough | Dedicated streaming TTS with interruption support. |
+| Lower speech latency is required | Move from sentence-level Orpheus TTS to a streaming TTS provider behind the same LiveKit audio output. |
 | External calendar/task actions are added | OAuth, explicit proposed-change review, and integration audit log. |
 
 The retired Gradio UI and dependency have been removed and are not part of this diagram.

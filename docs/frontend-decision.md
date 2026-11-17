@@ -40,7 +40,7 @@ The revised shell keeps the part that worked and removes the seams:
 
 ## Technical boundaries
 
-- `voice-ui/` owns browser rendering, navigation, WebRTC interaction, barge-in, and browser speech synthesis.
+- `voice-ui/` owns browser rendering, navigation, WebRTC interaction, and remote room-audio playback.
 - `voice_server.py` serves the compiled assets, token endpoint, and local JSON API.
 - `loose_ends/services.py` owns validation, idempotent approval, and state changes.
 - SQLite is durable state; JavaScript state is presentation state only.
@@ -49,7 +49,7 @@ The revised shell keeps the part that worked and removes the seams:
 
 ## Accepted trade-offs
 
-The dedicated frontend needs explicit HTML, CSS, and API wiring, but the implemented voice experience already required those capabilities. LiveKit adds a separate worker process, and Groq Whisper publishes a turn after the user pauses rather than word-by-word interim transcription. Browser speech quality depends on installed browser/OS voices, and Talk cannot fall back to typing when microphone or speech support is unavailable. Review and Board remain usable. These are preferable to splitting the main journey across two unrelated interfaces.
+The dedicated frontend needs explicit HTML, CSS, and API wiring, but the implemented voice experience already required those capabilities. LiveKit adds a separate worker process, and Groq Whisper publishes a turn after the user pauses rather than word-by-word interim transcription. Groq Orpheus is sentence-level rather than streaming and limits each request to 200 characters, so responses stay concise. Talk cannot fall back to typing when microphone or audio support is unavailable. Review and Board remain usable.
 
 ## Revisit when
 
@@ -57,6 +57,6 @@ The dedicated frontend needs explicit HTML, CSS, and API wiring, but the impleme
 - long-running planning jobs need durable workers and status polling;
 - lower-latency streaming STT is needed for faster turn recognition;
 - mobile packaging requires native audio/session integration;
-- browser speech quality is insufficient and a dedicated TTS provider is justified.
+- lower-latency streaming speech becomes important enough to replace sentence-level Groq TTS.
 
 The old Gradio module and dependency have been removed; they are not part of the current runtime or UI plan.

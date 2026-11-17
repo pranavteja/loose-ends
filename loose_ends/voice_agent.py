@@ -101,6 +101,9 @@ would make the plan materially clearer. Reflect corrections back accurately;
 never invent dates, commitments, progress, or reminders. Treat things called
 an idea, a maybe, or explicitly not a task as ideas.
 
+Keep each spoken sentence under 180 characters so voice playback begins
+quickly and remains within the speech model's per-request limit.
+
 This is an audio-only experience. Never ask the user to type, read a transcript,
 or use chat. The user hears your response and can interrupt you at any time.
 
@@ -273,10 +276,11 @@ async def voice_entrypoint(ctx: JobContext) -> None:
     service = _planner_service()
     session = AgentSession(
         # Groq Whisper is final-segment transcription. VAD supplies natural
-        # hands-free turn detection. Assistant text is sent through LiveKit and
-        # spoken by the browser, avoiding a separate cloud TTS dependency.
+        # hands-free turn detection, and Groq Orpheus publishes assistant audio
+        # directly into the LiveKit room for reliable playback and interruption.
         stt=groq.STT(model=voice.stt_model, language=voice.stt_language),
         llm=groq.LLM(model=voice.llm_model),
+        tts=groq.TTS(model=voice.tts_model, voice=voice.tts_voice),
         vad=ctx.proc.userdata["vad"],
         preemptive_generation=True,
     )
@@ -297,7 +301,7 @@ async def voice_entrypoint(ctx: JobContext) -> None:
         agent=companion,
         room=ctx.room,
         room_options=room_io.RoomOptions(
-            audio_output=False,
+            audio_output=True,
             text_output=room_io.TextOutputOptions(sync_transcription=False),
         ),
     )

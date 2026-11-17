@@ -22,6 +22,8 @@ class VoiceSettings:
     stt_model: str
     stt_language: str
     llm_model: str
+    tts_model: str
+    tts_voice: str
 
     @classmethod
     def from_env(cls) -> "VoiceSettings":
@@ -35,6 +37,8 @@ class VoiceSettings:
             stt_model=os.getenv("VOICE_STT_MODEL", "whisper-large-v3-turbo"),
             stt_language=os.getenv("VOICE_STT_LANGUAGE", "en"),
             llm_model=os.getenv("VOICE_LLM_MODEL", "openai/gpt-oss-20b"),
+            tts_model=os.getenv("VOICE_TTS_MODEL", "canopylabs/orpheus-v1-english"),
+            tts_voice=os.getenv("VOICE_TTS_VOICE", "autumn"),
         )
 
     def missing_livekit_values(self) -> list[str]:
